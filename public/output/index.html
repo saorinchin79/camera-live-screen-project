@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Program Output · Stream Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/shared/stage.css">
+  <link rel="stylesheet" href="./output.css">
+</head>
+<body>
+  <div id="viewport">
+    <div id="stage-wrap"></div>
+  </div>
+
+  <div id="hint" class="hint">
+    <strong>Program output · 1920 × 1080</strong>
+    <span>Press <kbd>F</kbd> or double-click for fullscreen · <kbd>H</kbd> hides this hint</span>
+    <span id="status">Connecting…</span>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/shared/layout.js"></script>
+  <script type="module" src="./output.js"></script>
+</body>
+</html>

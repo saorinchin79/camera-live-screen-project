@@ -1,0 +1,215 @@
+/* Stage: the 1920x1080 program as rendered by stage.js (admin preview and program output) */
+
+.stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: #3a3d42;
+  color: #fff;
+  transform-origin: 0 0;
+  font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  user-select: none;
+}
+
+.stage-main,
+.stage-layers {
+  position: absolute;
+  inset: 0;
+}
+
+.stage-main video,
+.stage-main img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  background: #000;
+}
+
+.stage-main-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.stage-main-title {
+  font-size: 120px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.stage-main-sub {
+  font-size: 22px;
+  color: #c9cfd6;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  letter-spacing: 0.1em;
+}
+
+/* ----- overlays ----- */
+
+.layer {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.layer-box {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #2f3a46;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.layer-box.bordered {
+  border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.layer-image .layer-box {
+  background: transparent;
+  box-shadow: none;
+}
+
+.layer-image .layer-box.bordered {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+
+.layer-box video,
+.layer-box img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.layer-placeholder {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  color: #e8ecf1;
+  background: #2f3a46;
+}
+
+.layer-image .layer-placeholder {
+  background: #33415a;
+}
+
+.layer.no-media .layer-placeholder,
+.layer.media-error .layer-placeholder {
+  display: flex;
+}
+
+.layer.no-media .layer-box video,
+.layer.no-media .layer-box img,
+.layer.media-error .layer-box img {
+  visibility: hidden;
+}
+
+.layer-silhouette {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.35;
+  fill: #c9cfd6;
+}
+
+.layer-badge {
+  position: relative;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: #4c9bff;
+  color: #121417;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+
+.layer-camera .layer-badge {
+  background: #d7322e;
+  color: #fff;
+}
+
+.layer-name {
+  position: relative;
+  font-weight: 600;
+  font-size: 18px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.layer-note {
+  position: relative;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 13px;
+  color: #e8ecf1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* ----- interactive (admin preview) ----- */
+
+.stage.interactive .layer {
+  cursor: move;
+}
+
+.stage.interactive .layer.selected {
+  outline: 4px solid var(--accent, #f5a524);
+  outline-offset: 3px;
+}
+
+.layer-label {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: -40px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(18, 20, 23, 0.9);
+  color: #e8ecf1;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.layer.selected .layer-label {
+  display: block;
+}
+
+.handle {
+  display: none;
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border: 3px solid var(--accent, #f5a524);
+  border-radius: 4px;
+  box-sizing: border-box;
+  z-index: 2;
+}
+
+.layer.selected .handle {
+  display: block;
+}
+
+.handle-nw { left: -11px; top: -11px; cursor: nwse-resize; }
+.handle-n  { left: calc(50% - 11px); top: -11px; cursor: ns-resize; }
+.handle-ne { right: -11px; top: -11px; cursor: nesw-resize; }
+.handle-e  { right: -11px; top: calc(50% - 11px); cursor: ew-resize; }
+.handle-se { right: -11px; bottom: -11px; cursor: nwse-resize; }
+.handle-s  { left: calc(50% - 11px); bottom: -11px; cursor: ns-resize; }
+.handle-sw { left: -11px; bottom: -11px; cursor: nesw-resize; }
+.handle-w  { left: -11px; top: calc(50% - 11px); cursor: ew-resize; }
