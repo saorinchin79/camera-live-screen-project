@@ -193,6 +193,7 @@ h1, h2, h3 { margin: 0; }
   width: calc(100% - 24px);
 }
 .main-row:hover { border-color: #3a4451; }
+.main-row.selected { border-color: var(--accent); }
 .main-icon {
   width: 40px; height: 40px; border-radius: 8px; background: #3a3d42;
   display: flex; align-items: center; justify-content: center; flex: none;
@@ -346,6 +347,21 @@ select { appearance: auto; }
 .anchor-btn.active { background: var(--accent); border-color: var(--accent); }
 .anchor-btn.active span { background: #121417; }
 
+.text-btn {
+  min-height: 32px; padding: 0 8px; margin-right: -8px;
+  border: 0; border-radius: 6px; background: transparent;
+  color: var(--accent); font-weight: 600; font-size: 13px; cursor: pointer;
+}
+.text-btn:hover { background: var(--panel-2); }
+.text-btn:disabled { color: var(--muted); opacity: 0.5; cursor: default; background: transparent; }
+
+.cctv-status { display: flex; align-items: center; gap: 10px; min-height: 24px; font-size: 13px; }
+.cctv-dot { width: 10px; height: 10px; border-radius: 50%; background: #6b7580; flex: none; }
+.cctv-status.live .cctv-dot { background: #3ecf8e; }
+.cctv-status.connecting .cctv-dot { background: var(--accent); }
+.cctv-status.error .cctv-dot { background: var(--live); }
+.cctv-status.error { color: var(--danger); }
+
 /* ---------- footer ---------- */
 
 .footer {
@@ -427,7 +443,19 @@ select { appearance: auto; }
 .library button { flex: 1; min-width: 0; text-align: left; height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; }
 .library button.active, .library button:hover { border-color: var(--accent); }
 
+.grid-cctv { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 12px; }
+.cctv-help { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.cctv-test { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; align-items: start; }
+.cctv-shot {
+  position: relative; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden;
+  background: #2f3a46; border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; padding: 14px; text-align: center;
+}
+.cctv-shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+#cctv-result { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+
 .error { margin: 0; color: var(--danger); font-size: 13px; }
+.ok { color: #3ecf8e; }
 
 /* ---------- toast ---------- */
 

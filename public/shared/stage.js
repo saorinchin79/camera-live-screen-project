@@ -3,10 +3,11 @@
  * Used by the admin preview (interactive: drag to move, handles to resize) and by the program output.
  *
  * Usage:
- *   const stage = createStage(container, { interactive: true, onSelect, onChange, lockAspect: () => true });
+ *   const stage = createStage(container, { interactive: true, onSelect, onChange, lockAspect: () => true, onMediaSize });
  *   stage.render(layout, selectedId);
  *   stage.setScale(0.6);
  *   stage.setCameraStream(mediaStream);
+ *   stage.setCctvStatus(status);   // the server's "cctv:status" events
  */
 const L = window.StreamLayout;
 
@@ -14,7 +15,7 @@ const HANDLE_DIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
 export function createStage(container, options = {}) {
   const opts = Object.assign(
-    { interactive: false, onSelect: () => {}, onChange: () => {}, lockAspect: () => false },
+    { interactive: false, onSelect: () => {}, onChange: () => {}, lockAspect: () => false, onMediaSize: () => {} },
     options
   );
 
@@ -41,7 +42,9 @@ export function createStage(container, options = {}) {
     cameraActive: false,
     cameraLabel: '',
     mainKey: '',
-    els: new Map(), // layer id -> { el, media, placeholder }
+    mainView: null, // the main screen's media in its crop frame (see mountMedia)
+    cctv: new Map(), // camera id -> latest status from the server
+    els: new Map(), // layer id -> { el, media, view, placeholder }
   };
 
   // ---------- public API ----------
@@ -77,16 +80,38 @@ export function createStage(container, options = {}) {
 
   function select(id) {
     state.selectedId = id;
+    mainEl.classList.toggle('selected', id === L.MAIN_ID);
     for (const [lid, entry] of state.els) entry.el.classList.toggle('selected', lid === id);
+  }
+
+  /** Size of a source (main screen: L.MAIN_ID) once its first frame is known, else null. */
+  function sourceSize(id) {
+    const view = id === L.MAIN_ID ? state.mainView : (state.els.get(id) || {}).view;
+    return view && view.w ? { w: view.w, h: view.h } : null;
   }
 
   // ---------- main screen ----------
 
   function renderMain(main) {
-    const key = [main.type, main.src, main.fit, main.loop, main.muted, main.label].join('|');
-    if (key === state.mainKey) return;
-    state.mainKey = key;
+    const key = [main.type, main.src, main.loop, main.muted].join('|');
+    if (key !== state.mainKey) {
+      state.mainKey = key;
+      buildMain(main);
+    }
+    // the name changes in place: renaming must not restart a video or reconnect a camera
+    const title = mainEl.querySelector('.stage-main-title');
+    if (title) title.textContent = main.label || 'Main Screen';
+    if (state.mainView) state.mainView.media.setAttribute(state.mainView.media.tagName === 'VIDEO' ? 'aria-label' : 'alt', main.label);
+    mainEl.classList.toggle('selected', state.selectedId === L.MAIN_ID);
+    if (state.mainView) fitMedia(state.mainView, L.OUTPUT_W, L.OUTPUT_H, main.fit, main.crop);
+    renderCctvState();
+  }
+
+  function buildMain(main) {
+    unmountMedia(state.mainView);
+    state.mainView = null;
     mainEl.innerHTML = '';
+    mainEl.className = 'stage-main';
 
     if (main.type === 'video' && main.src) {
       const v = document.createElement('video');
@@ -95,9 +120,9 @@ export function createStage(container, options = {}) {
       v.loop = main.loop;
       v.muted = main.muted;
       v.playsInline = true;
-      v.style.objectFit = main.fit;
       v.setAttribute('aria-label', main.label);
-      mainEl.appendChild(v);
+      state.mainView = mountMedia(mainEl, v, L.MAIN_ID);
+      mainEl.classList.add('has-media');
       v.play().catch(() => {});
       return;
     }
@@ -105,15 +130,166 @@ export function createStage(container, options = {}) {
       const img = document.createElement('img');
       img.src = main.src;
       img.alt = main.label;
-      img.style.objectFit = main.fit;
-      mainEl.appendChild(img);
+      img.draggable = false;
+      state.mainView = mountMedia(mainEl, img, L.MAIN_ID);
+      mainEl.classList.add('has-media');
       return;
     }
+    if (main.type === 'cctv' && main.src) {
+      // MJPEG from the server: shown from the first frame on, reconnected when the stream breaks
+      const img = document.createElement('img');
+      img.alt = main.label;
+      img.draggable = false;
+      state.mainView = mountMedia(mainEl, img, L.MAIN_ID, { poll: true });
+      img.addEventListener('error', scheduleCctvReload);
+      mainEl.classList.add('has-media', 'cctv', 'cctv-waiting');
+      mainEl.appendChild(makePlaceholder(main.label, 'LIVE CCTV · CONNECTING…'));
+      const badge = document.createElement('div');
+      badge.className = 'stage-main-badge';
+      badge.textContent = 'RECONNECTING';
+      mainEl.appendChild(badge);
+      img.src = main.src;
+      return;
+    }
+    mainEl.appendChild(makePlaceholder(main.label || 'Main Screen', `PROGRAM INPUT · ${L.OUTPUT_W} × ${L.OUTPUT_H} · 16:9`));
+  }
+
+  function makePlaceholder(title, sub) {
     const ph = document.createElement('div');
     ph.className = 'stage-main-placeholder';
-    ph.innerHTML = `<span class="stage-main-title"></span><span class="stage-main-sub">PROGRAM INPUT · ${L.OUTPUT_W} × ${L.OUTPUT_H} · 16:9</span>`;
-    ph.querySelector('.stage-main-title').textContent = main.label || 'Main Screen';
-    mainEl.appendChild(ph);
+    ph.innerHTML = '<span class="stage-main-title"></span><span class="stage-main-sub"></span>';
+    ph.querySelector('.stage-main-title').textContent = title;
+    ph.querySelector('.stage-main-sub').textContent = sub;
+    return ph;
+  }
+
+  // ---------- live CCTV on the main screen ----------
+
+  let cctvRetry = null;
+
+  function scheduleCctvReload() {
+    if (cctvRetry) return;
+    cctvRetry = setTimeout(() => {
+      cctvRetry = null;
+      reloadStreams();
+    }, 3000);
+  }
+
+  /** Reconnects the main screen's CCTV stream, e.g. after the server restarted. */
+  function reloadStreams() {
+    const main = state.layout && state.layout.main;
+    if (!state.mainView || !main || main.type !== 'cctv') return;
+    state.mainView.media.src = `${main.src}?t=${Date.now()}`;
+  }
+
+  function setCctvStatus(status) {
+    if (!status || !status.id) return;
+    state.cctv.set(status.id, status);
+    renderCctvState();
+  }
+
+  function renderCctvState() {
+    const main = state.layout && state.layout.main;
+    if (!main || main.type !== 'cctv' || !state.mainView) return;
+    const status = state.cctv.get(L.cctvIdOf(main.src));
+    mainEl.classList.toggle('cctv-down', !!status && (status.state === 'error' || status.state === 'connecting'));
+    const sub = mainEl.querySelector('.stage-main-sub');
+    if (!sub) return;
+    if (status && status.state === 'error') {
+      // the admin sees why; the program only says that it is retrying
+      sub.textContent = opts.interactive ? `CCTV OFFLINE · ${status.message}` : 'CCTV OFFLINE · RETRYING';
+    } else {
+      sub.textContent = 'LIVE CCTV · CONNECTING…';
+    }
+  }
+
+  // ---------- media: crop + fit ----------
+
+  /**
+   * Puts a media element in a crop frame. The frame is the part of the source that stays visible (sized
+   * by fitMedia); the media inside it is the whole source, shifted so the cropped edges fall outside.
+   */
+  function mountMedia(parent, media, id, { poll = false } = {}) {
+    const frame = document.createElement('div');
+    frame.className = 'media-frame';
+    frame.appendChild(media);
+    parent.appendChild(frame);
+    const view = { id, media, frame, w: 0, h: 0, boxW: 1, boxH: 1, fit: 'cover', crop: null, timer: null };
+    const check = () => measure(view);
+    if (media.tagName === 'VIDEO') {
+      media.addEventListener('loadedmetadata', check);
+      media.addEventListener('resize', check);
+    } else {
+      media.addEventListener('load', check);
+    }
+    // an MJPEG stream need not fire "load" for its frames: watch its size instead
+    if (poll) view.timer = setInterval(check, 500);
+    return view;
+  }
+
+  function measure(view) {
+    const m = view.media;
+    const w = m.videoWidth || m.naturalWidth || 0;
+    const h = m.videoHeight || m.naturalHeight || 0;
+    if (!w || !h || (w === view.w && h === view.h)) return;
+    view.w = w;
+    view.h = h;
+    fitMedia(view);
+    if (view === state.mainView) mainEl.classList.remove('cctv-waiting');
+    opts.onMediaSize(view.id, { w, h });
+  }
+
+  function unmountMedia(view) {
+    if (!view) return;
+    clearInterval(view.timer);
+    const m = view.media;
+    if (m.tagName === 'IMG') {
+      m.removeAttribute('src'); // also ends an MJPEG stream's connection
+    } else if (!m.srcObject) {
+      m.pause();
+      m.removeAttribute('src');
+      m.load();
+    }
+  }
+
+  const pct = (v) => `${(v * 100).toFixed(3)}%`;
+
+  /**
+   * Shows the cropped part of the source in a box of boxW × boxH: `crop` cuts a percentage off each edge,
+   * then the rest is fitted (cover / contain / fill). Without a box it re-applies the last one, e.g. once
+   * the source size is known. Mirroring (a transform on the media) flips the picture inside the same frame.
+   */
+  function fitMedia(view, boxW, boxH, fit, crop) {
+    if (boxW) Object.assign(view, { boxW, boxH, fit, crop });
+    const { media, frame } = view;
+    const c = view.crop || L.sanitizeCrop();
+    if (!view.w || !view.h) {
+      // size not known yet: plain object-fit, and a cropped source stays hidden until it can be cropped
+      Object.assign(frame.style, { left: '0', top: '0', width: '100%', height: '100%', visibility: L.hasCrop(c) ? 'hidden' : '' });
+      Object.assign(media.style, { left: '0', top: '0', width: '100%', height: '100%', objectFit: view.fit });
+      return;
+    }
+    const keepW = 1 - (c.left + c.right) / 100; // share of the source that stays visible
+    const keepH = 1 - (c.top + c.bottom) / 100;
+    const cropAspect = (view.w * keepW) / (view.h * keepH);
+    const boxAspect = view.boxW / view.boxH;
+    let fw = 1; // frame size as a share of the box
+    let fh = 1;
+    if (view.fit === 'contain') {
+      if (cropAspect > boxAspect) fh = boxAspect / cropAspect;
+      else fw = cropAspect / boxAspect;
+    } else if (view.fit === 'cover') {
+      if (cropAspect > boxAspect) fw = cropAspect / boxAspect;
+      else fh = boxAspect / cropAspect;
+    }
+    Object.assign(frame.style, { left: pct((1 - fw) / 2), top: pct((1 - fh) / 2), width: pct(fw), height: pct(fh), visibility: '' });
+    Object.assign(media.style, {
+      left: pct(-c.left / 100 / keepW),
+      top: pct(-c.top / 100 / keepH),
+      width: pct(1 / keepW),
+      height: pct(1 / keepH),
+      objectFit: 'fill',
+    });
   }
 
   // ---------- overlays ----------
@@ -123,13 +299,17 @@ export function createStage(container, options = {}) {
     for (const [id, entry] of state.els) {
       if (!ids.has(id)) {
         entry.el.remove();
+        unmountMedia(entry.view);
         state.els.delete(id);
       }
     }
     layers.forEach((layer, index) => {
       let entry = state.els.get(layer.id);
       if (!entry || entry.type !== layer.type) {
-        if (entry) entry.el.remove();
+        if (entry) {
+          entry.el.remove();
+          unmountMedia(entry.view);
+        }
         entry = createLayerEl(layer);
         state.els.set(layer.id, entry);
       }
@@ -172,9 +352,9 @@ export function createStage(container, options = {}) {
       media.addEventListener('error', () => el.classList.add('media-error'));
       media.addEventListener('load', () => el.classList.remove('media-error'));
     }
-    box.appendChild(media);
+    const view = mountMedia(box, media, layer.id);
 
-    const entry = { el, box, media, placeholder, type: layer.type, layer };
+    const entry = { el, box, media, view, placeholder, type: layer.type, layer };
 
     if (opts.interactive) {
       const label = document.createElement('div');
@@ -205,7 +385,6 @@ export function createStage(container, options = {}) {
     el.classList.toggle('selected', layer.id === state.selectedId);
     box.style.borderRadius = layer.radius + 'px';
     box.classList.toggle('bordered', !!layer.border);
-    media.style.objectFit = layer.fit;
     media.style.transform = layer.mirror ? 'scaleX(-1)' : '';
 
     placeholder.querySelector('.layer-badge').textContent = layer.type === 'camera' ? 'LIVE' : badgeFor(layer.src);
@@ -217,11 +396,13 @@ export function createStage(container, options = {}) {
       attachCamera(entry);
     } else {
       if (media.getAttribute('src') !== (layer.src || '')) {
+        entry.view.w = entry.view.h = 0; // a new picture is fitted again once its size is known
         if (layer.src) media.setAttribute('src', layer.src);
         else media.removeAttribute('src');
       }
       el.classList.toggle('no-media', !layer.src);
     }
+    fitMedia(entry.view, layer.w, layer.h, layer.fit, layer.crop);
   }
 
   function attachCamera(entry) {
@@ -342,6 +523,7 @@ export function createStage(container, options = {}) {
     entry.el.style.top = layer.y + 'px';
     entry.el.style.width = layer.w + 'px';
     entry.el.style.height = layer.h + 'px';
+    fitMedia(entry.view, layer.w, layer.h, layer.fit, layer.crop);
     entry.placeholder.querySelector('.layer-note').textContent = `${layer.w} × ${layer.h}`;
     if (entry.label) entry.label.textContent = `${layer.name} · ${layer.x}, ${layer.y} · ${layer.w} × ${layer.h}`;
   }
@@ -352,5 +534,16 @@ export function createStage(container, options = {}) {
     });
   }
 
-  return { root, render, select, setScale, setCameraStream, setCameraActive, get scale() { return state.scale; } };
+  return {
+    root,
+    render,
+    select,
+    setScale,
+    setCameraStream,
+    setCameraActive,
+    setCctvStatus,
+    reloadStreams,
+    sourceSize,
+    get scale() { return state.scale; },
+  };
 }

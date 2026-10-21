@@ -2,8 +2,9 @@
  * Layout model shared by the server (CommonJS) and the browser (window.StreamLayout).
  *
  * A layout describes the 1920x1080 program:
- *   main   — what fills the whole screen (placeholder, uploaded video or image)
+ *   main   — what fills the whole screen (placeholder, uploaded video or image, live CCTV camera)
  *   layers — split-screen overlays drawn on top, back to front (camera / image)
+ * Every source can be cropped: `crop` cuts a percentage off each edge before the rest is fitted.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -17,7 +18,17 @@
 
   const LAYER_TYPES = ['camera', 'image'];
   const FITS = ['cover', 'contain', 'fill'];
-  const MAIN_TYPES = ['placeholder', 'video', 'image'];
+  const MAIN_TYPES = ['placeholder', 'video', 'image', 'cctv'];
+
+  /** Selection id the admin uses for the main screen (overlay ids never look like this). */
+  const MAIN_ID = '__main__';
+
+  /** Crop: percent cut off each edge of the source; 45 % per edge keeps at least 10 % of it. */
+  const CROP_EDGES = ['top', 'right', 'bottom', 'left'];
+  const MAX_CROP = 45;
+
+  /** A live CCTV camera is played from this server; the camera URL (and password) stays there. */
+  const CCTV_SRC = /^\/api\/cctv\/([a-z0-9-]{1,40})\/stream\.mjpg$/;
 
   const DEFAULT_LAYOUT = {
     version: 1,
@@ -83,9 +94,34 @@
   function isSafeSrc(src) {
     if (typeof src !== 'string' || !src) return false;
     if (src.startsWith('/uploads/')) return true;
+    if (CCTV_SRC.test(src)) return true;
     if (/^https?:\/\//i.test(src)) return true;
     if (/^blob:/i.test(src)) return true;
     return false;
+  }
+
+  function isCctvSrc(src) {
+    return typeof src === 'string' && CCTV_SRC.test(src);
+  }
+
+  function cctvSrc(id) {
+    return `/api/cctv/${id}/stream.mjpg`;
+  }
+
+  function cctvIdOf(src) {
+    const m = typeof src === 'string' ? CCTV_SRC.exec(src) : null;
+    return m ? m[1] : '';
+  }
+
+  function sanitizeCrop(raw) {
+    const c = raw && typeof raw === 'object' ? raw : {};
+    const crop = {};
+    for (const edge of CROP_EDGES) crop[edge] = clamp(Math.round(num(c[edge], 0) * 10) / 10, 0, MAX_CROP);
+    return crop;
+  }
+
+  function hasCrop(crop) {
+    return !!crop && CROP_EDGES.some((edge) => crop[edge] > 0);
   }
 
   function sanitizeLayer(raw, index) {
@@ -108,6 +144,7 @@
       fit: FITS.includes(l.fit) ? l.fit : 'cover',
       mirror: !!l.mirror,
       border: l.border !== false,
+      crop: sanitizeCrop(l.crop),
     };
   }
 
@@ -115,6 +152,8 @@
     const s = raw && typeof raw === 'object' ? raw : {};
     const main = s.main && typeof s.main === 'object' ? s.main : {};
     const mainType = MAIN_TYPES.includes(main.type) ? main.type : 'placeholder';
+    // a CCTV main screen needs a CCTV stream, a video or image main screen a file or URL
+    const mainSrcOk = isSafeSrc(main.src) && (mainType === 'cctv') === isCctvSrc(main.src);
     const layers = Array.isArray(s.layers) ? s.layers.map(sanitizeLayer) : [];
     const seen = new Set();
     for (const l of layers) {
@@ -125,12 +164,13 @@
       version: 1,
       output: { width: OUTPUT_W, height: OUTPUT_H },
       main: {
-        type: mainType === 'placeholder' || isSafeSrc(main.src) ? mainType : 'placeholder',
+        type: mainType === 'placeholder' || mainSrcOk ? mainType : 'placeholder',
         src: isSafeSrc(main.src) ? main.src : '',
         fit: FITS.includes(main.fit) ? main.fit : 'cover',
         loop: main.loop !== false,
         muted: main.muted !== false,
         label: String(main.label || 'Main Screen').slice(0, 80),
+        crop: sanitizeCrop(main.crop),
       },
       layers,
       template: typeof s.template === 'string' ? s.template.slice(0, 32) : 'custom',
@@ -201,6 +241,9 @@
     LAYER_TYPES,
     FITS,
     MAIN_TYPES,
+    MAIN_ID,
+    CROP_EDGES,
+    MAX_CROP,
     DEFAULT_LAYOUT,
     TEMPLATES,
     ANCHORS,
@@ -208,6 +251,11 @@
     clamp,
     uid,
     isSafeSrc,
+    isCctvSrc,
+    cctvSrc,
+    cctvIdOf,
+    sanitizeCrop,
+    hasCrop,
     sanitizeLayer,
     sanitizeLayout,
     constrain,

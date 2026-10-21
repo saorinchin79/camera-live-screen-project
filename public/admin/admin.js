@@ -1,7 +1,8 @@
 /**
  * Admin — split-screen layout editor.
  *
- * - Edits the layout (overlays: local camera, PNG/GIF images; main screen: placeholder/video/image)
+ * - Edits the layout (overlays: local camera, PNG/GIF images; main screen: placeholder/video/image/live CCTV)
+ * - Crops any source (main screen or overlay) to cut toolbars and black bars off its edges
  * - Live preview with drag-to-move and resize handles (shared stage renderer)
  * - Sends the layout to every program output over Socket.IO ("Auto take" or "Take to program")
  * - Captures the local camera with getUserMedia and streams it to the outputs over WebRTC
@@ -27,6 +28,7 @@ const state = {
   peers: new Map(), // output socket id -> RTCPeerConnection
   library: [],
   pendingImage: null, // { file } or { url, name }
+  cctv: { cameras: [], status: new Map() }, // saved CCTV cameras (passwords masked) + live status by id
 };
 
 const socket = io();
@@ -40,6 +42,8 @@ const stage = createStage($('preview'), {
   lockAspect: () => state.lockAspect,
   onSelect: (id) => select(id),
   onChange: (layer, live) => updateLayer(layer.id, layer, { live, fromStage: true }),
+  // the crop info shows the source size once the first frame is in
+  onMediaSize: (id) => { if (id === state.selectedId) renderProps(); },
 });
 stage.root.classList.add('interactive');
 
@@ -98,6 +102,19 @@ function updateLayer(id, patch, { live = false, fromStage = false } = {}) {
   pushLayout();
 }
 
+function updateMain(patch, { live = false } = {}) {
+  state.layout = Object.assign({}, state.layout, { main: Object.assign({}, state.layout.main, patch) });
+  if (live) {
+    // mid-slide: redraw the preview, refresh the panel, throttle network
+    stage.render(state.layout, state.selectedId);
+    renderProps();
+    if (state.autoTake) throttledPush();
+    return;
+  }
+  renderAll();
+  pushLayout();
+}
+
 let throttleTs = 0;
 function throttledPush() {
   const now = Date.now();
@@ -114,6 +131,7 @@ function selectedLayer() {
 function select(id) {
   state.selectedId = id;
   stage.select(id);
+  renderMainRow();
   renderList();
   renderProps();
 }
@@ -171,8 +189,12 @@ function renderAll() {
 function renderMainRow() {
   const m = state.layout.main;
   const file = m.src ? m.src.split('/').pop() : '';
-  const desc = m.type === 'placeholder' ? `Placeholder "${m.label}"` : `${m.type === 'video' ? 'Video' : 'Image'} · ${file}`;
-  $('main-meta').textContent = `${desc} · 1920 × 1080`;
+  const desc =
+    m.type === 'placeholder' ? `Placeholder "${m.label}"`
+    : m.type === 'cctv' ? `Live CCTV · ${m.label}`
+    : `${m.type === 'video' ? 'Video' : 'Image'} · ${file}`;
+  $('main-meta').textContent = `${desc}${L.hasCrop(m.crop) ? ' · cropped' : ''} · 1920 × 1080`;
+  $('btn-main').classList.toggle('selected', state.selectedId === L.MAIN_ID);
 }
 
 function badgeClass(layer) {
@@ -215,14 +237,21 @@ function renderList() {
 
 function renderProps() {
   const layer = selectedLayer();
+  const isMain = state.selectedId === L.MAIN_ID;
   $('props').classList.toggle('hidden', !layer);
-  $('props-title').classList.toggle('hidden', !layer);
-  $('props-empty').classList.toggle('hidden', !!layer);
+  $('main-props').classList.toggle('hidden', !isMain);
+  $('props-title').classList.toggle('hidden', !layer && !isMain);
+  $('props-empty').classList.toggle('hidden', !!layer || isMain);
+  if (isMain) {
+    renderMainProps();
+    return;
+  }
   if (!layer) return;
 
   const badge = $('props-badge');
   badge.className = badgeClass(layer);
   badge.textContent = badgeText(layer);
+  $('f-name').setAttribute('aria-label', 'Overlay name');
   if (document.activeElement !== $('f-name')) $('f-name').value = layer.name;
   $('props-src').textContent =
     layer.type === 'camera'
@@ -272,6 +301,70 @@ function renderProps() {
   const index = state.layout.layers.indexOf(layer);
   $('btn-up').disabled = index >= state.layout.layers.length - 1;
   $('btn-down').disabled = index <= 0;
+
+  placeCropSection($('props'), $('sec-layer'));
+  $('crop-section').classList.remove('hidden');
+  renderCrop(layer.crop, stage.sourceSize(layer.id));
+}
+
+const MAIN_BADGES = { placeholder: 'TEXT', video: 'VIDEO', image: 'IMAGE', cctv: 'CCTV' };
+
+function renderMainProps() {
+  const m = state.layout.main;
+  const badge = $('props-badge');
+  badge.className = m.type === 'cctv' ? 'badge badge-live' : 'badge';
+  badge.textContent = MAIN_BADGES[m.type];
+  $('f-name').setAttribute('aria-label', 'Main screen name');
+  if (document.activeElement !== $('f-name')) $('f-name').value = m.label;
+  $('props-src').textContent =
+    m.type === 'placeholder' ? 'Main screen · placeholder text'
+    : m.type === 'cctv' ? 'Main screen · live CCTV camera'
+    : `Main screen · ${m.src.split('/').pop()}`;
+  $('mp-fit').value = m.fit;
+
+  const isCctv = m.type === 'cctv';
+  $('mp-cctv').classList.toggle('hidden', !isCctv);
+  $('mp-cctv-hint').classList.add('hidden');
+  if (isCctv) renderCctvStatus(state.cctv.status.get(L.cctvIdOf(m.src)));
+
+  // a placeholder has nothing to crop
+  placeCropSection($('main-props'));
+  $('crop-section').classList.toggle('hidden', m.type === 'placeholder');
+  renderCrop(m.crop, stage.sourceSize(L.MAIN_ID));
+}
+
+function renderCctvStatus(s) {
+  const phase = s ? s.state : 'idle';
+  $('mp-cctv').className = `cctv-status ${phase}`;
+  $('mp-cctv-text').textContent =
+    phase === 'live' ? `Live · ${s.width} × ${s.height} · ${s.viewers} viewer${s.viewers === 1 ? '' : 's'}`
+    : phase === 'connecting' ? 'Connecting to the camera…'
+    : phase === 'error' ? `Camera offline, retrying · ${s.message}`
+    : 'Not connected';
+  const hint = $('mp-cctv-hint');
+  hint.textContent = phase === 'error' && s.hint ? s.hint : '';
+  hint.classList.toggle('hidden', !hint.textContent);
+}
+
+/** The crop controls serve the main screen and the overlays: they move into the panel being shown. */
+function placeCropSection(host, before = null) {
+  const sec = $('crop-section');
+  if (sec.parentNode !== host || sec.nextElementSibling !== before) host.insertBefore(sec, before);
+}
+
+function renderCrop(crop, size) {
+  for (const edge of L.CROP_EDGES) {
+    $(`c-${edge}`).value = crop[edge];
+    $(`c-${edge}-val`).textContent = `${crop[edge]} %`;
+  }
+  $('crop-reset').disabled = !L.hasCrop(crop);
+  let info = '';
+  if (size) {
+    const w = Math.round(size.w * (1 - (crop.left + crop.right) / 100));
+    const h = Math.round(size.h * (1 - (crop.top + crop.bottom) / 100));
+    info = L.hasCrop(crop) ? `Source ${size.w} × ${size.h} → showing ${w} × ${h}` : `Source ${size.w} × ${size.h}`;
+  }
+  $('crop-info').textContent = info;
 }
 
 function setIfIdle(id, value) {
@@ -358,7 +451,39 @@ $('f-opacity').addEventListener('change', (e) => {
 $('f-fit').addEventListener('change', (e) => { const l = selectedLayer(); if (l) updateLayer(l.id, { fit: e.target.value }); });
 $('f-border').addEventListener('change', (e) => { const l = selectedLayer(); if (l) updateLayer(l.id, { border: e.target.checked }); });
 $('f-mirror').addEventListener('change', (e) => { const l = selectedLayer(); if (l) updateLayer(l.id, { mirror: e.target.checked }); });
-$('f-name').addEventListener('change', (e) => { const l = selectedLayer(); if (l) updateLayer(l.id, { name: e.target.value.trim() || l.name }); });
+$('f-name').addEventListener('change', (e) => {
+  if (state.selectedId === L.MAIN_ID) return updateMain({ label: e.target.value.trim() || state.layout.main.label });
+  const l = selectedLayer();
+  if (l) updateLayer(l.id, { name: e.target.value.trim() || l.name });
+});
+
+// main screen
+$('mp-fit').addEventListener('change', (e) => updateMain({ fit: e.target.value }));
+$('mp-change').addEventListener('click', () => openDialog('main'));
+
+// crop: the selected overlay, or the main screen; the preview follows the sliders
+function setCrop(crop, live) {
+  if (state.selectedId === L.MAIN_ID) return updateMain({ crop }, { live });
+  const layer = selectedLayer();
+  if (!layer) return;
+  updateLayer(layer.id, { crop }, { live });
+  if (live) stage.render(state.layout, state.selectedId);
+}
+function selectedCrop() {
+  if (state.selectedId === L.MAIN_ID) return state.layout.main.crop;
+  const layer = selectedLayer();
+  return layer ? layer.crop : null;
+}
+for (const edge of L.CROP_EDGES) {
+  const input = $(`c-${edge}`);
+  const apply = (live) => {
+    const crop = selectedCrop();
+    if (crop) setCrop(L.sanitizeCrop(Object.assign({}, crop, { [edge]: Number(input.value) })), live);
+  };
+  input.addEventListener('input', () => apply(true));
+  input.addEventListener('change', () => apply(false));
+}
+$('crop-reset').addEventListener('click', () => setCrop(L.sanitizeCrop(), false));
 
 $('btn-up').addEventListener('click', () => { const l = selectedLayer(); if (l) moveLayer(l.id, +1); });
 $('btn-down').addEventListener('click', () => { const l = selectedLayer(); if (l) moveLayer(l.id, -1); });
@@ -373,6 +498,7 @@ $('btn-duplicate').addEventListener('click', () => {
 document.addEventListener('keydown', (e) => {
   const tag = (e.target.tagName || '').toLowerCase();
   if (['input', 'select', 'textarea'].includes(tag) || $('add-dialog').open) return;
+  if (e.key === 'Escape' && state.selectedId === L.MAIN_ID) return select(null);
   const layer = selectedLayer();
   if (!layer) return;
   const step = e.shiftKey ? 10 : 1;
@@ -426,7 +552,7 @@ function switchTab(id) {
 }
 
 $('btn-add').addEventListener('click', () => openDialog('camera'));
-$('btn-main').addEventListener('click', () => openDialog('main'));
+$('btn-main').addEventListener('click', () => select(L.MAIN_ID));
 for (const t of dialog.querySelectorAll('.tab')) t.addEventListener('click', () => switchTab(t.dataset.tab));
 for (const b of dialog.querySelectorAll('[data-close]')) b.addEventListener('click', () => dialog.close());
 dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
@@ -688,19 +814,115 @@ function syncMainForm() {
   const type = m.type === 'video' && /^https?:/i.test(m.src) ? 'url' : m.type;
   const radio = dialog.querySelector(`input[name="main-type"][value="${type}"]`);
   if (radio) radio.checked = true;
-  $('main-label').value = m.label;
+  $('main-label').value = m.type === 'cctv' ? 'Main Screen' : m.label;
   $('main-url').value = type === 'url' ? m.src : '';
   $('main-fit').value = m.fit;
   $('main-loop').checked = m.loop;
   $('main-muted').checked = m.muted;
   showMainFields();
+  loadCctv(m.type === 'cctv' ? L.cctvIdOf(m.src) : undefined);
 }
 
 function showMainFields() {
   const type = dialog.querySelector('input[name="main-type"]:checked').value;
   for (const el of dialog.querySelectorAll('[data-main]')) el.classList.toggle('hidden', el.dataset.main !== type);
+  $('main-video-opts').classList.toggle('hidden', type !== 'video' && type !== 'url');
 }
 for (const r of dialog.querySelectorAll('input[name="main-type"]')) r.addEventListener('change', showMainFields);
+
+// ---------- main screen: live CCTV ----------
+
+async function loadCctv(selectId) {
+  try {
+    const res = await fetch('/api/cctv');
+    state.cctv.cameras = await res.json();
+  } catch (_) {
+    state.cctv.cameras = [];
+  }
+  const sel = $('cctv-select');
+  const keep = selectId !== undefined ? selectId : sel.value;
+  sel.innerHTML = '';
+  for (const cam of state.cctv.cameras) {
+    const o = document.createElement('option');
+    o.value = cam.id;
+    o.textContent = cam.name;
+    sel.appendChild(o);
+  }
+  const add = document.createElement('option');
+  add.value = '';
+  add.textContent = '+ Add a new camera';
+  sel.appendChild(add);
+  sel.value = state.cctv.cameras.some((c) => c.id === keep) ? keep : state.cctv.cameras[0] ? state.cctv.cameras[0].id : '';
+  fillCctvForm();
+}
+
+function selectedCctv() {
+  return state.cctv.cameras.find((c) => c.id === $('cctv-select').value) || null;
+}
+
+function fillCctvForm() {
+  const cam = selectedCctv();
+  $('cctv-name').value = cam ? cam.name : '';
+  $('cctv-url').value = cam ? cam.url : ''; // the password comes back masked; leave it to keep it
+  $('cctv-fps').value = String(cam ? cam.fps : 15);
+  $('cctv-delete').classList.toggle('hidden', !cam);
+  $('cctv-shot').classList.add('hidden');
+  $('cctv-shot-hint').classList.remove('hidden');
+  setCctvResult('');
+}
+$('cctv-select').addEventListener('change', fillCctvForm);
+
+function setCctvResult(text, kind) {
+  const el = $('cctv-result');
+  el.textContent = text;
+  el.className = 'small' + (kind ? ` ${kind}` : '');
+}
+
+async function postJson(url, method, body) {
+  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+/** Saves the camera in the form (new or changed) and returns it. */
+async function saveCctv() {
+  const cam = selectedCctv();
+  const body = { name: $('cctv-name').value, url: $('cctv-url').value, fps: Number($('cctv-fps').value) };
+  const saved = await postJson(cam ? `/api/cctv/${cam.id}` : '/api/cctv', cam ? 'PUT' : 'POST', body);
+  await loadCctv(saved.id);
+  return saved;
+}
+
+$('cctv-test').addEventListener('click', async () => {
+  const btn = $('cctv-test');
+  const cam = selectedCctv();
+  btn.disabled = true;
+  btn.textContent = 'Testing…';
+  setCctvResult('Connecting to the camera, this can take a few seconds…');
+  try {
+    const r = await postJson('/api/cctv/test', 'POST', { id: cam ? cam.id : undefined, url: $('cctv-url').value });
+    if (!r.ok) return setCctvResult([r.error, r.hint].filter(Boolean).join(' '), 'error');
+    $('cctv-shot').src = r.image;
+    $('cctv-shot').classList.remove('hidden');
+    $('cctv-shot-hint').classList.add('hidden');
+    setCctvResult(`Connected · ${r.width} × ${r.height}${r.codec ? ` · ${r.codec.toUpperCase()}` : ''}`, 'ok');
+  } catch (e) {
+    setCctvResult(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Test connection';
+  }
+});
+
+$('cctv-delete').addEventListener('click', async () => {
+  const cam = selectedCctv();
+  if (!cam || !confirm(`Delete the camera "${cam.name}"? If it is on the main screen, the main screen goes back to the placeholder.`)) return;
+  const res = await fetch(`/api/cctv/${cam.id}`, { method: 'DELETE' });
+  if (!res.ok) return setCctvResult('Could not delete the camera.', 'error');
+  await loadCctv('');
+  toast(`Camera "${cam.name}" deleted.`);
+});
 
 $('main-apply').addEventListener('click', async () => {
   const err = $('main-error');
@@ -723,6 +945,12 @@ $('main-apply').addEventListener('click', async () => {
       if (!/^https?:\/\//i.test(url)) throw new Error('Enter a direct http(s) link to an .mp4 or .webm file.');
       main.type = 'video';
       main.src = url;
+    } else if (type === 'cctv') {
+      btn.textContent = 'Saving camera…';
+      const cam = await saveCctv();
+      main.type = 'cctv';
+      main.src = L.cctvSrc(cam.id);
+      main.label = cam.name;
     } else {
       const input = type === 'video' ? $('main-video') : $('main-image');
       const file = input.files[0];
@@ -739,6 +967,9 @@ $('main-apply').addEventListener('click', async () => {
       }
       main.type = type;
     }
+    // a crop belongs to its source: a new source starts uncropped
+    const prev = state.layout.main;
+    if (main.type !== prev.type || main.src !== prev.src) main.crop = L.sanitizeCrop();
     state.layout = Object.assign({}, state.layout, { main });
     renderAll();
     pushLayout();
@@ -757,9 +988,19 @@ $('main-apply').addEventListener('click', async () => {
 // Realtime: layout sync + peers
 // ---------------------------------------------------------------------------
 
+let connectedBefore = false;
 socket.on('connect', () => {
   socket.emit('hello', { role: 'admin', name: 'admin' });
   if (state.camera.stream) socket.emit('camera:state', { active: true, label: state.camera.label });
+  // back after a server restart: the CCTV stream connection died with it
+  if (connectedBefore) stage.reloadStreams();
+  connectedBefore = true;
+});
+
+socket.on('cctv:status', (status) => {
+  state.cctv.status.set(status.id, status);
+  stage.setCctvStatus(status);
+  if (state.selectedId === L.MAIN_ID) renderMainProps();
 });
 
 socket.on('layout', (next) => {

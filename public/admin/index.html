@@ -41,7 +41,7 @@
         </button>
       </div>
 
-      <button id="btn-main" class="main-row" type="button" title="Change the main screen">
+      <button id="btn-main" class="main-row" type="button" title="Select the main screen to change its source, fit and crop">
         <span class="main-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="11" rx="2"></rect><path d="M7 18h6"></path></svg></span>
         <span class="main-text">
           <span class="row-name">Main Screen</span>
@@ -89,7 +89,20 @@
         </div>
       </div>
 
-      <div id="props-empty" class="props-empty">Select an overlay in the list or the preview to edit its size and position.</div>
+      <div id="props-empty" class="props-empty">Select the main screen, or an overlay in the list or the preview, to edit it.</div>
+
+      <div id="main-props" class="props hidden">
+        <section>
+          <h3>Source</h3>
+          <div id="mp-cctv" class="cctv-status hidden"><span class="cctv-dot" aria-hidden="true"></span><span id="mp-cctv-text"></span></div>
+          <p id="mp-cctv-hint" class="muted small hidden"></p>
+          <button id="mp-change" class="btn btn-ghost" type="button">Change main screen source…</button>
+        </section>
+
+        <section>
+          <label>Fit to 1920 × 1080<select id="mp-fit"><option value="cover">Cover (crop to fill)</option><option value="contain">Contain (letterbox)</option><option value="fill">Stretch</option></select></label>
+        </section>
+      </div>
 
       <div id="props" class="props hidden">
         <section>
@@ -129,7 +142,20 @@
           <label id="f-mirror-label" class="check"><input id="f-mirror" type="checkbox">Mirror camera horizontally</label>
         </section>
 
-        <section>
+        <!-- shared with the main screen: renderProps() moves it into the panel being shown -->
+        <section id="crop-section">
+          <div class="section-head"><h3>Crop</h3><button id="crop-reset" class="text-btn" type="button">Reset</button></div>
+          <span class="muted small">Cut a toolbar, a timestamp or black bars off the edges. What is left fills the window.</span>
+          <div class="grid-2">
+            <label class="range-label"><span class="between"><span>Top</span><span id="c-top-val" class="mono">0 %</span></span><input id="c-top" type="range" min="0" max="45" step="0.1"></label>
+            <label class="range-label"><span class="between"><span>Bottom</span><span id="c-bottom-val" class="mono">0 %</span></span><input id="c-bottom" type="range" min="0" max="45" step="0.1"></label>
+            <label class="range-label"><span class="between"><span>Left</span><span id="c-left-val" class="mono">0 %</span></span><input id="c-left" type="range" min="0" max="45" step="0.1"></label>
+            <label class="range-label"><span class="between"><span>Right</span><span id="c-right-val" class="mono">0 %</span></span><input id="c-right" type="range" min="0" max="45" step="0.1"></label>
+          </div>
+          <span id="crop-info" class="muted small mono"></span>
+        </section>
+
+        <section id="sec-layer">
           <h3>Layer</h3>
           <div class="btn-row">
             <button id="btn-up" class="btn btn-ghost" type="button">Bring forward</button>
@@ -236,14 +262,32 @@
           <label class="check"><input type="radio" name="main-type" value="video">Video file</label>
           <label class="check"><input type="radio" name="main-type" value="image">Image file</label>
           <label class="check"><input type="radio" name="main-type" value="url">Video URL</label>
+          <label class="check"><input type="radio" name="main-type" value="cctv">Live CCTV camera</label>
         </div>
         <label data-main="placeholder">Placeholder text<input id="main-label" type="text" value="Main Screen" maxlength="80"></label>
         <label data-main="video" class="hidden">Video file (MP4 / WebM)<input id="main-video" type="file" accept="video/mp4,video/webm"></label>
         <label data-main="image" class="hidden">Image file (PNG / JPG / WebP)<input id="main-image" type="file" accept="image/png,image/jpeg,image/webp"></label>
         <label data-main="url" class="hidden">Direct video URL (.mp4 / .webm)<input id="main-url" type="url" placeholder="https://…/program.mp4"></label>
+        <div data-main="cctv" class="stack hidden">
+          <div class="grid-cctv">
+            <label>Camera<select id="cctv-select"></select></label>
+            <label>Frame rate<select id="cctv-fps"><option value="5">5 fps</option><option value="10">10 fps</option><option value="15">15 fps</option><option value="25">25 fps</option></select></label>
+          </div>
+          <label>Camera name<input id="cctv-name" type="text" maxlength="60" placeholder="Front gate"></label>
+          <label>Stream URL<input id="cctv-url" type="text" spellcheck="false" autocomplete="off" placeholder="rtsp://admin:password@192.168.1.64:554/Streaming/Channels/101"></label>
+          <p class="muted small cctv-help">Use the camera’s or NVR’s RTSP address. Hikvision: <span class="mono">rtsp://user:password@IP:554/Streaming/Channels/101</span> (102 = sub stream). Dahua / Imou: <span class="mono">rtsp://user:password@IP:554/cam/realmonitor?channel=1&amp;subtype=0</span>. RTMP, HTTP MJPEG and .m3u8 links work too. The password stays on the server.</p>
+          <div class="cctv-test">
+            <div class="cctv-shot"><img id="cctv-shot" class="hidden" alt="Test frame from the camera"><span id="cctv-shot-hint" class="muted small">Test the camera to see a frame from it here</span></div>
+            <div class="stack">
+              <button type="button" id="cctv-test" class="btn btn-ghost">Test connection</button>
+              <p id="cctv-result" class="small"></p>
+              <button type="button" id="cctv-delete" class="btn btn-ghost btn-danger hidden">Delete this camera</button>
+            </div>
+          </div>
+        </div>
         <div class="dialog-options">
           <label>Fit<select id="main-fit"><option value="cover">Cover (crop to fill)</option><option value="contain">Contain (letterbox)</option><option value="fill">Stretch</option></select></label>
-          <div class="stack compact">
+          <div id="main-video-opts" class="stack compact">
             <label class="check"><input id="main-loop" type="checkbox" checked>Loop video</label>
             <label class="check"><input id="main-muted" type="checkbox" checked>Mute video (required for autoplay)</label>
           </div>

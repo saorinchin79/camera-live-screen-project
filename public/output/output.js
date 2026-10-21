@@ -1,6 +1,7 @@
 /**
  * Program output — shows the 1920x1080 program and follows the admin's layout in real time.
- * The admin's local camera arrives over WebRTC (signaling relayed by the server).
+ * The admin's local camera arrives over WebRTC (signaling relayed by the server); a CCTV main screen
+ * is an MJPEG stream from the server.
  */
 import { createStage } from '/shared/stage.js';
 
@@ -51,6 +52,7 @@ document.addEventListener('mousemove', () => {
 
 const socket = io();
 const peers = new Map(); // admin socket id -> RTCPeerConnection
+let connectedBefore = false;
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -59,7 +61,12 @@ function setStatus(text) {
 socket.on('connect', () => {
   socket.emit('hello', { role: 'output', name: navigator.userAgent.slice(0, 40) });
   setStatus('Connected · waiting for layout');
+  // back after a server restart: the CCTV stream connection died with it
+  if (connectedBefore) stage.reloadStreams();
+  connectedBefore = true;
 });
+
+socket.on('cctv:status', (status) => stage.setCctvStatus(status));
 
 socket.on('disconnect', () => setStatus('Disconnected from server — reconnecting…'));
 

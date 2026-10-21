@@ -18,13 +18,68 @@
   inset: 0;
 }
 
-.stage-main video,
-.stage-main img {
+.stage-main.has-media {
+  background: #000;
+}
+
+/* crop window: the visible part of a source (sized by stage.js); the media inside is the whole source */
+.media-frame {
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+}
+
+.media-frame > video,
+.media-frame > img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
   display: block;
   object-fit: cover;
-  background: #000;
+}
+
+/* live CCTV: the placeholder until the first frame, a badge while the camera reconnects */
+.stage-main.cctv-waiting .media-frame {
+  visibility: hidden;
+}
+
+.stage-main.cctv:not(.cctv-waiting) .stage-main-placeholder {
+  display: none;
+}
+
+.stage-main-badge {
+  display: none;
+  position: absolute;
+  right: 32px;
+  top: 32px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: rgba(18, 20, 23, 0.82);
+  color: #fff;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.stage-main-badge::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 12px;
+  border-radius: 50%;
+  background: #d7322e;
+}
+
+.stage-main.cctv-down:not(.cctv-waiting) .stage-main-badge {
+  display: block;
 }
 
 .stage-main-placeholder {
@@ -80,16 +135,6 @@
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
 }
 
-.layer-box video,
-.layer-box img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-}
-
 .layer-placeholder {
   position: absolute;
   inset: 0;
@@ -112,9 +157,8 @@
   display: flex;
 }
 
-.layer.no-media .layer-box video,
-.layer.no-media .layer-box img,
-.layer.media-error .layer-box img {
+.layer.no-media .media-frame,
+.layer.media-error .media-frame {
   visibility: hidden;
 }
 
@@ -168,6 +212,14 @@
 .stage.interactive .layer.selected {
   outline: 4px solid var(--accent, #f5a524);
   outline-offset: 3px;
+}
+
+.stage.interactive .stage-main.selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 8px solid var(--accent, #f5a524);
+  pointer-events: none;
 }
 
 .layer-label {

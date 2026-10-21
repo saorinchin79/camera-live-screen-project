@@ -5,6 +5,7 @@
  * - Keeps the split-screen layout in data/layout.json and broadcasts changes over Socket.IO
  * - Accepts PNG / GIF / JPG / WebP / MP4 / WebM uploads (POST /api/upload)
  * - Relays WebRTC signaling so the admin's local camera is streamed live to every output display
+ * - Plays live CCTV cameras (RTSP, RTMP, HTTP MJPEG, HLS) on the main screen through ffmpeg (cctv.js)
  */
 'use strict';
 
@@ -17,7 +18,8 @@ const express = require('express');
 const multer = require('multer');
 const { Server } = require('socket.io');
 
-const { DEFAULT_LAYOUT, sanitizeLayout } = require('./public/shared/layout');
+const { DEFAULT_LAYOUT, sanitizeLayout, cctvIdOf } = require('./public/shared/layout');
+const { createCctv } = require('./cctv');
 
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -82,6 +84,14 @@ const upload = multer({
   },
 });
 
+// ---------- live CCTV ----------
+
+const cctv = createCctv({
+  file: path.join(DATA_DIR, 'cctv.json'),
+  ffmpeg: process.env.FFMPEG_PATH || 'ffmpeg',
+  onStatus: (status) => io.emit('cctv:status', status),
+});
+
 // ---------- app ----------
 
 const app = express();
@@ -137,6 +147,40 @@ app.delete('/api/uploads/:name', (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/cctv', (req, res) => res.json(cctv.list()));
+
+app.post('/api/cctv/test', async (req, res) => {
+  try {
+    res.json(await cctv.test(req.body));
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+app.post('/api/cctv', (req, res) => respond(res, () => cctv.save(null, req.body)));
+app.put('/api/cctv/:id', (req, res) => respond(res, () => cctv.save(req.params.id, req.body)));
+
+app.delete('/api/cctv/:id', (req, res) => {
+  if (!cctv.remove(req.params.id)) return res.status(404).json({ error: 'Camera not found.' });
+  // the main screen cannot keep showing a deleted camera
+  if (layout.main.type === 'cctv' && cctvIdOf(layout.main.src) === req.params.id) {
+    layout = sanitizeLayout(Object.assign({}, layout, { main: Object.assign({}, layout.main, { type: 'placeholder', src: '', label: 'Main Screen' }) }));
+    saveLayout(layout);
+    io.emit('layout', layout);
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/cctv/:id/stream.mjpg', (req, res) => cctv.stream(req.params.id, req, res));
+
+function respond(res, fn) {
+  try {
+    res.json(fn());
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+}
+
 // ---------- http(s) server ----------
 
 let server;
@@ -176,6 +220,7 @@ io.on('connection', (socket) => {
     peers.set(socket.id, { role, name: String(info.name || '').slice(0, 60) });
     socket.emit('layout', layout);
     socket.emit('camera:state', cameraState);
+    for (const status of cctv.statuses()) socket.emit('cctv:status', status);
     if (role === 'output') {
       for (const id of adminIds()) io.to(id).emit('output:joined', { id: socket.id });
     }
@@ -242,9 +287,18 @@ server.listen(PORT, () => {
   console.log(`  Admin  : ${scheme}://localhost:${PORT}/admin/`);
   console.log(`  Output : ${scheme}://localhost:${PORT}/output/   (press F for fullscreen)`);
   for (const ip of lanAddresses()) console.log(`  LAN    : ${scheme}://${ip}:${PORT}/`);
+  console.log(`  CCTV   : ${cctv.version ? `ffmpeg ${cctv.version.text}` : 'ffmpeg not found — install it or set FFMPEG_PATH to play CCTV cameras'}`);
   if (scheme === 'http') {
     console.log('  Note   : browsers only allow camera access on localhost or HTTPS.');
     console.log('           For LAN use, start with SSL_KEY/SSL_CERT (see README).');
   }
   console.log('');
 });
+
+// stop every camera's ffmpeg with the server
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    cctv.shutdown();
+    process.exit(0);
+  });
+}
