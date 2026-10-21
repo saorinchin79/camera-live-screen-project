@@ -39,6 +39,8 @@
   const TEMPLATES = {
     pip: { label: 'Picture-in-picture', desc: 'Camera top-left', camera: { x: 48, y: 48, w: 640, h: 360 } },
     side: { label: 'Half split', desc: 'Camera fills the right half', camera: { x: 960, y: 0, w: 960, h: 1080 } },
+    bottomHalf: { label: '1/2 horizontal', desc: 'Camera fills the bottom half', camera: { x: 0, y: 540, w: 1920, h: 540 } },
+    bottomThird: { label: '1/3 horizontal', desc: 'Camera fills the bottom third', camera: { x: 0, y: 720, w: 1920, h: 360 } },
     presenter: { label: 'Presenter corner', desc: 'Small camera bottom-right', camera: { x: 1392, y: 762, w: 480, h: 270 } },
     full: { label: 'Camera full screen', desc: 'Camera covers the main screen', camera: { x: 0, y: 0, w: 1920, h: 1080 } },
   };

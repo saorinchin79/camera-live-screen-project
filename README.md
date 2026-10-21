@@ -26,7 +26,7 @@ OBS as a **Browser Source** (1920 × 1080) to stream it.
 ## Features
 
 - **Main screen** — placeholder text, an uploaded MP4/WebM video, an image, or a direct video URL; cover / contain / stretch.
-- **Split screen** — overlays stack on top of the main screen. Presets: Picture-in-picture, Half split, Presenter corner, Camera full screen.
+- **Split screen** — overlays stack on top of the main screen. Presets: Picture-in-picture, Half split, 1/2 horizontal, 1/3 horizontal, Presenter corner, Camera full screen.
 - **Local camera live** — pick the camera device, resolution and mirroring; the stream goes to every output over WebRTC (optional microphone audio).
 - **PNG / GIF** — upload (transparency kept, GIFs animate) or reuse an uploaded file; drag and drop supported.
 - **Size & position** — drag the window in the preview, pull the handles to resize, type X / Y / Width / Height in output pixels, lock aspect ratio, quick sizes (1/4 … full width), 3 × 3 snap grid with a 48 px safe margin, arrow-key nudging.
