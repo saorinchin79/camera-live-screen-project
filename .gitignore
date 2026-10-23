@@ -4,3 +4,4 @@ data/
 *.pem
 .DS_Store
 npm-debug.log*
+runtime/

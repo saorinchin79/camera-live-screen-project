@@ -100,6 +100,19 @@ function fail(status, message) {
 
 // ---------- ffmpeg ----------
 
+/** FFMPEG_PATH if set, else the ffmpeg on the PATH (often newer), else the copy npm installed (ffmpeg-static). */
+function findFfmpeg(preferred) {
+  if (preferred) return preferred;
+  if (ffmpegVersion('ffmpeg')) return 'ffmpeg';
+  try {
+    const bundled = require('ffmpeg-static');
+    if (bundled && fs.existsSync(bundled)) return bundled;
+  } catch (_) {
+    // the optional dependency is not installed
+  }
+  return 'ffmpeg';
+}
+
 function ffmpegVersion(ffmpeg) {
   try {
     const out = spawnSync(ffmpeg, ['-version'], { encoding: 'utf8', timeout: 5000 });
@@ -396,11 +409,13 @@ class Hub {
 
 /**
  * @param {{ file: string, ffmpeg?: string, onStatus?: (status: object) => void }} options
- *   file — JSON file the cameras are saved in; onStatus — called whenever a camera connects, drops or gains a viewer
+ *   file — JSON file the cameras are saved in; ffmpeg — path to use instead of finding one;
+ *   onStatus — called whenever a camera connects, drops or gains a viewer
  */
-function createCctv({ file, ffmpeg = 'ffmpeg', onStatus = () => {} }) {
-  const version = ffmpegVersion(ffmpeg);
-  const env = { ffmpeg, onStatus, timeoutFlag: version && version.major < 5 ? '-stimeout' : '-timeout' };
+function createCctv({ file, ffmpeg, onStatus = () => {} }) {
+  const ffmpegPath = findFfmpeg(ffmpeg);
+  const version = ffmpegVersion(ffmpegPath);
+  const env = { ffmpeg: ffmpegPath, onStatus, timeoutFlag: version && version.major < 5 ? '-stimeout' : '-timeout' };
   const hubs = new Map();
   let cams = load();
 
@@ -429,6 +444,7 @@ function createCctv({ file, ffmpeg = 'ffmpeg', onStatus = () => {} }) {
 
   return {
     version,
+    ffmpegPath,
 
     list() {
       return cams.map(view);
@@ -495,4 +511,15 @@ function createCctv({ file, ffmpeg = 'ffmpeg', onStatus = () => {} }) {
   };
 }
 
-module.exports = { createCctv, maskUrl, maskText, unmaskUrl, checkUrl, createMjpegParser, jpegSize, FPS_CHOICES };
+module.exports = {
+  createCctv,
+  findFfmpeg,
+  ffmpegVersion,
+  maskUrl,
+  maskText,
+  unmaskUrl,
+  checkUrl,
+  createMjpegParser,
+  jpegSize,
+  FPS_CHOICES,
+};

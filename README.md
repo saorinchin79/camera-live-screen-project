@@ -9,12 +9,19 @@ camera**, and every source can be **cropped** (cut a toolbar off a video). Chang
 Admin (browser)  ──layout + camera (WebRTC)──▶  Node server  ──▶  Program output (browser, fullscreen 1920×1080)
 ```
 
+**Installing on another computer?** Follow **[INSTALL.md](INSTALL.md)**: a step-by-step guide with one-click
+installers for Windows (`Install-Windows.bat`), macOS and Linux (`setup/install.sh`), and how to connect a
+webcam and CCTV cameras.
+
 ## Run
 
 ```bash
 npm install
 npm start
 ```
+
+Or double-click `Start-StreamStudio.bat` (Windows) / `Start-StreamStudio.command` (macOS, Linux): it starts the
+server and opens the admin page in the browser.
 
 | Page | URL | What it is |
 | --- | --- | --- |
@@ -40,8 +47,9 @@ OBS as a **Browser Source** (1920 × 1080) to stream it.
 
 ## Live CCTV
 
-Browsers cannot play RTSP, so the server converts the camera with **ffmpeg** (install it: `brew install ffmpeg`
-on macOS, `apt install ffmpeg` on Linux). While anyone watches a camera, one ffmpeg reads it and sends Motion JPEG
+Browsers cannot play RTSP, so the server converts the camera with **ffmpeg**. `npm install` brings a copy
+(the optional `ffmpeg-static` package); an ffmpeg already on the PATH, or `FFMPEG_PATH`, is preferred.
+While anyone watches a camera, one ffmpeg reads it and sends Motion JPEG
 to every output, so ten screens still cost the camera one connection. ffmpeg starts with the first viewer,
 reconnects on its own when the camera drops (the output shows a RECONNECTING badge) and stops 15 s after
 the last viewer leaves.
@@ -83,10 +91,11 @@ The output page works over plain HTTP; only the admin needs HTTPS when it is not
 
 | Env var | Default | Meaning |
 | --- | --- | --- |
-| `PORT` | `3000` | HTTP(S) port |
+| `PORT` | `3000` | HTTP(S) port; without it, a number in `data/port.txt` is used (updates keep that file) |
 | `MAX_UPLOAD_MB` | `500` | Upload size limit |
 | `SSL_KEY`, `SSL_CERT` | – | PEM files; when both are set the server runs HTTPS |
-| `FFMPEG_PATH` | `ffmpeg` | ffmpeg used for CCTV cameras (the startup log shows the version found) |
+| `FFMPEG_PATH` | – | ffmpeg for CCTV cameras; without it the server uses `ffmpeg` on the PATH, else the copy npm installed (`ffmpeg-static`). The startup log shows which |
+| `OPEN_BROWSER` | – | `1` opens the admin page in the browser once the server is ready (the Start-StreamStudio launchers set it) |
 
 ## API
 
@@ -141,9 +150,17 @@ public/shared/stage.js    Stage renderer (main screen + overlays, crop, drag/res
 public/shared/stage.css   Stage styles
 public/admin/             Admin layout editor
 public/output/            Program output page
+INSTALL.md                Step-by-step installation on another computer, webcam and CCTV set-up
+Install-Windows.bat       Windows installer (double-click); runs setup/install-windows.ps1
+Start-StreamStudio.bat    Windows launcher: starts the server, opens the admin
+Start-StreamStudio.command  macOS / Linux launcher
+setup/install.sh          macOS / Linux installer
+setup/stream-studio.ico   Icon of the shortcuts (.png for Linux)
 data/layout.json          Saved layout (created on first run)
 data/cctv.json            CCTV cameras with their URLs and passwords (created when the first camera is added)
+data/port.txt             Optional: the port, when it is not 3000
 uploads/                  Uploaded media (created on first run)
+runtime/node/             Node.js downloaded by the installers when the computer has no Node.js 18+
 ```
 
-Requires Node 18 or newer, and ffmpeg for CCTV cameras. No build step.
+Requires Node 18 or newer. ffmpeg for CCTV cameras comes with `npm install`. No build step.

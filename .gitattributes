@@ -1,0 +1,8 @@
+# Windows batch files keep CRLF byte for byte, also in raw downloads from GitHub
+*.bat -text
+# shell scripts must keep LF, even when checked out on Windows
+*.sh text eol=lf
+*.command text eol=lf
+# binary
+*.ico binary
+*.png binary
