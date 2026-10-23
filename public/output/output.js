@@ -10,7 +10,6 @@ const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 const wrap = document.getElementById('stage-wrap');
 const hint = document.getElementById('hint');
-const statusEl = document.getElementById('status');
 
 const stage = createStage(wrap, { interactive: false });
 let layout = L.sanitizeLayout(L.DEFAULT_LAYOUT);
@@ -34,7 +33,6 @@ function toggleFullscreen() {
 document.addEventListener('dblclick', toggleFullscreen);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'f' || e.key === 'F') toggleFullscreen();
-  if (e.key === 'h' || e.key === 'H') hint.classList.toggle('hidden');
 });
 
 let hintTimer = setTimeout(() => hint.classList.add('hidden'), 8000);
@@ -54,13 +52,8 @@ const socket = io();
 const peers = new Map(); // admin socket id -> RTCPeerConnection
 let connectedBefore = false;
 
-function setStatus(text) {
-  statusEl.textContent = text;
-}
-
 socket.on('connect', () => {
   socket.emit('hello', { role: 'output', name: navigator.userAgent.slice(0, 40) });
-  setStatus('Connected · waiting for layout');
   // back after a server restart: the CCTV stream connection died with it
   if (connectedBefore) stage.reloadStreams();
   connectedBefore = true;
@@ -68,12 +61,9 @@ socket.on('connect', () => {
 
 socket.on('cctv:status', (status) => stage.setCctvStatus(status));
 
-socket.on('disconnect', () => setStatus('Disconnected from server — reconnecting…'));
-
 socket.on('layout', (next) => {
   layout = L.sanitizeLayout(next);
   stage.render(layout);
-  setStatus(`Layout received · ${layout.layers.filter((l) => l.visible).length} overlay(s) on program`);
 });
 
 socket.on('camera:state', (state) => {
@@ -98,17 +88,13 @@ socket.on('rtc:signal', async ({ from, data }) => {
       pc.ontrack = (e) => {
         const stream = e.streams[0] || new MediaStream([e.track]);
         stage.setCameraStream(stream);
-        setStatus('Camera stream connected');
       };
       pc.onicecandidate = (e) => {
         if (e.candidate) socket.emit('rtc:signal', { to: from, data: { candidate: e.candidate } });
       };
       pc.onconnectionstatechange = () => {
         if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) {
-          if (peers.get(from)?.pc === pc) {
-            stage.setCameraStream(null);
-            setStatus('Camera stream ended');
-          }
+          if (peers.get(from)?.pc === pc) stage.setCameraStream(null);
         }
       };
 
@@ -128,7 +114,6 @@ socket.on('rtc:signal', async ({ from, data }) => {
     }
   } catch (err) {
     console.error('WebRTC error', err);
-    setStatus('Camera connection error: ' + err.message);
   }
 });
 
