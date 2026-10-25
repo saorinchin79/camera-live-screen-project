@@ -4,7 +4,8 @@
   Easiest: double-click Install-Windows.bat. Or paste this into PowerShell:
     irm https://raw.githubusercontent.com/saorinchin79/camera-live-screen-project/main/setup/install-windows.ps1 | iex
 
-  It installs into %USERPROFILE%\StreamStudio and needs no administrator rights:
+  It asks for the installation password, then installs into %USERPROFILE%\StreamStudio and needs
+  no administrator rights:
     1. copies Stream Studio there (from the folder around this script, or downloaded from GitHub)
     2. uses Node.js 18+ if this PC has it, otherwise downloads Node.js LTS into StreamStudio\runtime\node
     3. installs the npm packages, including ffmpeg for the CCTV cameras
@@ -61,6 +62,30 @@ function Get-NodeMajor([string]$exe) {
     if ($version -match '^v(\d+)\.') { return [int]$Matches[1] }
   } catch { }
   return 0
+}
+
+# ---------- password ----------
+
+# The script is public, so it keeps only a PBKDF2-SHA256 hash of the installation password. To change it, run
+#   node -e "const c = require('crypto'), s = c.randomBytes(16); console.log(s.toString('base64'), c.pbkdf2Sync(process.argv[1], s, 600000, 32, 'sha256').toString('base64'))" "<new password>"
+# and put the two values it prints into $PasswordSalt and $PasswordHash.
+$PasswordSalt = 'fB3aC+DRLGjaFJj5iAbPHg=='
+$PasswordHash = '24l5qTTZl0ZC6pT59PlelYYpbXOhmFEb9SJ2cG+mZXM='
+
+function Test-Password([string]$password) {
+  # Rfc2898DeriveBytes with a hash algorithm needs .NET Framework 4.7.2, part of Windows 10 1803 and later
+  $kdf = [Security.Cryptography.Rfc2898DeriveBytes]::new($password, [Convert]::FromBase64String($PasswordSalt), 600000, [Security.Cryptography.HashAlgorithmName]::SHA256)
+  try { return [Convert]::ToBase64String($kdf.GetBytes(32)) -ceq $PasswordHash } finally { $kdf.Dispose() }
+}
+
+function Confirm-Password {
+  Step 'Enter the installation password'
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    $secure = Read-Host '    Password' -AsSecureString
+    if (Test-Password ([Net.NetworkCredential]::new('', $secure).Password)) { return }
+    Warn 'Wrong password.'
+  }
+  throw 'The password was wrong 3 times.'
 }
 
 # ---------- the project ----------
@@ -185,6 +210,7 @@ function Install-StreamStudio {
   Write-Host '  Stream Studio setup' -ForegroundColor Cyan
   Write-Host "  Installs into $InstallDir"
 
+  Confirm-Password
   $source = Get-SourceDir $InstallDir
   New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
   $root = (Resolve-Path $InstallDir).Path

@@ -31,6 +31,7 @@ pictures and logos. This guide installs it on a new computer and connects your c
 | You need | Notes |
 | --- | --- |
 | A computer | Windows 10 or 11 (64-bit), macOS 13.5 (Ventura) or newer, or Ubuntu / Debian Linux |
+| The installation password | Windows only: you get it from the person who gave you Stream Studio |
 | Internet | Only while installing: about 70 to 90 MB is downloaded |
 | A web browser | **Google Chrome** or **Microsoft Edge** work best |
 | A webcam | Built in, or plugged in by USB, if you want to show a local camera |
@@ -50,16 +51,18 @@ explains where to find them.
 2. Open your **Downloads** folder, right-click **camera-live-screen-project-main.zip** and choose **Extract All… → Extract**.
 3. In the extracted folder, double-click **Install-Windows.bat**.
    - If Windows shows **"Windows protected your PC"**, click **More info → Run anyway**.
-4. A black window shows the installation. It:
+4. A black window opens and asks for the **installation password**. Type it and press **Enter**. Each letter
+   shows as `*`, and capital and small letters count. After three wrong tries the installer stops; run it again.
+5. The window then shows the installation. It:
    - copies Stream Studio to `C:\Users\<your name>\StreamStudio`
    - downloads Node.js (the engine that runs Stream Studio) into that folder, if the computer does not have it
    - installs the program's parts, including **ffmpeg** for CCTV cameras
    - adds **Stream Studio** to the desktop and the Start menu
-5. It asks two questions. Type the letter and press **Enter**:
+6. It asks two questions. Type the letter and press **Enter**:
    - *Start Stream Studio automatically when you log in to Windows?* Type **y** for a computer that is only used
      as a display, otherwise **n**.
    - *Start Stream Studio now?* Press **Enter** (yes).
-6. When the message **"Stream Studio is installed"** appears, the installation is done. You can delete the
+7. When the message **"Stream Studio is installed"** appears, the installation is done. You can delete the
    downloaded ZIP and the extracted folder.
 
 ### Option B: one line in PowerShell
@@ -70,7 +73,7 @@ Open the Start menu, type **PowerShell**, open it, paste this line and press **E
 irm https://raw.githubusercontent.com/saorinchin79/camera-live-screen-project/main/setup/install-windows.ps1 | iex
 ```
 
-It does the same as option A without the ZIP. You can also send someone the single file **Install-Windows.bat**:
+It does the same as option A, password included, without the ZIP. You can also send someone the single file **Install-Windows.bat**:
 on its own, it downloads Stream Studio by itself.
 
 ### The first start on Windows
@@ -298,7 +301,7 @@ same time.
 Your layout, cameras, passwords and uploaded pictures and videos are kept.
 
 - **Windows:** Start menu → **Stream Studio - Update**. Or double-click **Install-Windows.bat** in the
-  `StreamStudio` folder.
+  `StreamStudio` folder. It asks for the installation password again.
 - **Mac and Linux:** run the installation line from section 3 / 4 again, or in Terminal:
   `bash ~/StreamStudio/setup/install.sh`
 
@@ -342,6 +345,7 @@ Delete these:
 | Problem | Solution |
 | --- | --- |
 | The installer stopped with *"Installation failed"* | Read the message above it, fix it (usually the internet connection), and run the installer again. It continues where it stopped |
+| *"Wrong password"*, then *"The password was wrong 3 times"* (Windows) | Run the installer again and type the installation password exactly, with the same capital and small letters. If you do not have it, ask the person who gave you Stream Studio |
 | *"The downloaded Node.js does not run on this computer"* (older Mac) | The current Node.js needs macOS 13.5 or newer. On macOS 11 or 12, install **Node.js 22** from https://nodejs.org/en/download (choose v22), then run the installer again: it uses that Node.js |
 | *"Windows protected your PC"* | Click **More info → Run anyway** |
 | The black window shows *"Port 3000 is used by another program"* | Another program uses the same port. Close it, or give Stream Studio another port: create a text file **port.txt** in the `StreamStudio\data` folder containing only `3001` (check that Windows did not name it `port.txt.txt`). Then use `http://localhost:3001/…` |
