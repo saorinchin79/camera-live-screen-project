@@ -1,8 +1,9 @@
 # Install Stream Studio on another computer
 
 Stream Studio turns a computer into a live screen: a **1920 × 1080 program output** for a TV, projector or
-second monitor, controlled from an **admin page** where you add your own **camera (webcam)**, a **CCTV camera**,
-pictures and logos. This guide installs it on a new computer and connects your cameras, step by step.
+second monitor, controlled from an **admin page** where you add your own **camera (webcam)**, **USB capture cards**,
+**shared screens and windows**, a **CCTV camera**, pictures and logos. This guide installs it on a new computer and
+connects your cameras, step by step.
 
 - Time needed: about 10 minutes.
 - No technical knowledge needed and no administrator password: the installer does everything for you.
@@ -16,7 +17,7 @@ pictures and logos. This guide installs it on a new computer and connects your c
 3. [Install on a Mac](#3-install-on-a-mac)
 4. [Install on Linux](#4-install-on-linux-ubuntu-debian)
 5. [Start and stop Stream Studio](#5-start-and-stop-stream-studio)
-6. [Use your own camera (webcam)](#6-use-your-own-camera-webcam)
+6. [Cameras, capture cards and screen sharing](#6-cameras-capture-cards-and-screen-sharing)
 7. [Add a CCTV camera](#7-add-a-cctv-camera)
 8. [Show the program on a TV or second screen](#8-show-the-program-on-a-tv-or-second-screen)
 9. [Update to a new version](#9-update-to-a-new-version)
@@ -149,7 +150,12 @@ If you double-click the icon while Stream Studio is already running, it just ope
 
 ---
 
-## 6. Use your own camera (webcam)
+## 6. Cameras, capture cards and screen sharing
+
+A webcam, a USB capture card and a shared screen all come from the computer the admin page is open on. The
+program shows them while that admin page stays open, so open it on that computer and leave it open.
+
+### 6.1 Your own camera (webcam)
 
 1. In the admin page, click **Add source** (top left). The **Local camera** tab is open.
 2. Choose the **Capture resolution** (1280 × 720 is a good choice). Optional: tick **Mirror horizontally** to show
@@ -168,6 +174,39 @@ Important:
   Browsers only allow the camera on "localhost" (or on an HTTPS address, see the README).
 - Close Zoom, Teams, Skype and other programs that use the camera: a webcam works in only one program at a time.
 - If the camera is blocked, see [Problems and solutions](#11-problems-and-solutions).
+
+### 6.2 A USB capture card or another USB camera
+
+An HDMI capture card brings in a camera, a laptop or a game console; it plugs into USB. Webcams and other USB video
+devices work the same way, and several can be live at once.
+
+1. Plug the device in, then click **Add source** → **USB device**.
+2. The first time, the browser asks to use the camera: click **Allow**. The **Device** list shows every video device
+   plugged into the computer, with a live preview of the one you choose.
+3. Choose the **Format**: 1920 × 1080 at 30 fps suits most capture cards. 60 fps is smoother but needs a faster
+   computer.
+4. Optional: type a **Name**, such as *Laptop HDMI*. Choose the **Initial size** (*Full screen* fills the whole
+   program) and the **Position**, then click **Add to layout**.
+5. To add another device, open **Add source** → **USB device** again and choose it.
+
+A device that is on the layout starts again by itself when the admin page opens again, and when it is plugged back
+in after being unplugged. To switch it off, select its overlay and click **Stop device** under **Source**.
+Changing the **Format** of a device that is live applies straight away.
+
+### 6.3 Share a screen or window
+
+1. Click **Add source** → **Screen share**.
+2. Choose the **Frame rate**: 15 fps for slides and documents, 30 fps for video, 60 fps for games.
+3. Click **Choose a screen or window…**. The browser asks what to share: a whole **screen**, one **window** (such as
+   PowerPoint or a video player) or a **browser tab**. Pick it and click **Share**.
+4. Check the preview, optionally type a **Name**, choose the **Initial size** and **Position**, then click
+   **Add to layout**.
+5. To share another window as well, repeat these steps.
+
+The browser shows a "sharing" bar while a share runs; **Stop sharing** there ends it, and the overlay then says
+*Not shared*. Select the overlay and click **Share again…** under **Source** to share again, or **Change window…**
+to show another window in its place. After the admin page is reloaded, shares have to be started again this way:
+browsers never share a screen without asking.
 
 ---
 
@@ -353,6 +392,10 @@ Delete these:
 | *"Camera access was blocked"* in the admin | Click the camera icon in the browser's address bar and choose **Always allow**, then reload the page. **Windows:** Settings → Privacy & security → Camera → turn on *Camera access* and *Let desktop apps access your camera*. **Mac:** System Settings → Privacy & Security → Camera → turn on your browser |
 | The webcam list says *"No camera found"* | Plug the webcam in again, close other programs that use it, and reload the admin page |
 | The camera works in the admin but not on the TV | The output receives the webcam from the admin page: keep the admin page open on the computer with the webcam |
+| A USB device says *"The device is busy"* | Another program uses it: close Zoom, Teams, OBS or the Camera app, then choose the device again |
+| The USB device list says *"No device found"* | Plug the device in again (into a blue USB 3 port if the capture card needs one), and check that it shows in the computer's Camera app |
+| *"This computer does not let the browser share the screen"* (Mac) | System Settings → Privacy & Security → Screen & System Audio Recording → turn on your browser, then quit and reopen the browser |
+| A shared window is black on the program | Some programs block window capture: share the whole **screen** instead, or turn off the program's hardware acceleration |
 | A TV or other computer cannot open the output | Use the **LAN** address, not `localhost`. Allow Node.js in the firewall and set the Windows network to **Private** |
 | The CCTV picture is slow or jerky | Use the camera's **sub stream** and a lower frame rate (5 or 10 fps) |
 | A CCTV camera stops working after its password was changed | Main Screen → Change main screen source… → Live CCTV camera → pick the camera, type the new password into the Stream URL, Test connection, Apply |

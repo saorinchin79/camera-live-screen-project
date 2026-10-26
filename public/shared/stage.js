@@ -7,11 +7,14 @@
  *   stage.render(layout, selectedId);
  *   stage.setScale(0.6);
  *   stage.setCameraStream(mediaStream);
+ *   stage.setSourceStream(sourceId, mediaStream);   // a USB device or screen share
+ *   stage.setLiveSources(sources);  // the server's "sources" events: what the admin publishes
  *   stage.setCctvStatus(status);   // the server's "cctv:status" events
  */
 const L = window.StreamLayout;
 
 const HANDLE_DIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+const LIVE_BADGES = { camera: 'LIVE', usb: 'USB', screen: 'SCREEN' };
 
 export function createStage(container, options = {}) {
   const opts = Object.assign(
@@ -41,6 +44,8 @@ export function createStage(container, options = {}) {
     cameraStream: null,
     cameraActive: false,
     cameraLabel: '',
+    streams: new Map(), // source id -> MediaStream of a USB device or screen share
+    liveSources: {}, // source id -> { kind, label } that the admin publishes right now
     mainKey: '',
     mainView: null, // the main screen's media in its crop frame (see mountMedia)
     cctv: new Map(), // camera id -> latest status from the server
@@ -68,6 +73,21 @@ export function createStage(container, options = {}) {
     state.cameraLabel = label || '';
     for (const [, entry] of state.els) {
       if (entry.type === 'camera') attachCamera(entry);
+    }
+  }
+
+  function setSourceStream(id, stream) {
+    if (stream) state.streams.set(id, stream);
+    else state.streams.delete(id);
+    for (const [, entry] of state.els) {
+      if (entry.layer.source === id) attachSource(entry);
+    }
+  }
+
+  function setLiveSources(sources) {
+    state.liveSources = sources || {};
+    for (const [, entry] of state.els) {
+      if (entry.layer.source) attachSource(entry);
     }
   }
 
@@ -334,18 +354,20 @@ export function createStage(container, options = {}) {
     box.appendChild(placeholder);
 
     let media;
-    if (layer.type === 'camera') {
+    if (L.LIVE_TYPES.includes(layer.type)) {
       media = document.createElement('video');
       media.autoplay = true;
       media.muted = true;
       media.playsInline = true;
+    }
+    if (layer.type === 'camera') {
       const sil = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       sil.setAttribute('viewBox', '0 0 160 90');
       sil.setAttribute('preserveAspectRatio', 'xMidYMax meet');
       sil.setAttribute('class', 'layer-silhouette');
       sil.innerHTML = '<circle cx="80" cy="38" r="18"></circle><path d="M34 92c4-24 22-34 46-34s42 10 46 34z"></path>';
       placeholder.insertBefore(sil, placeholder.firstChild);
-    } else {
+    } else if (!media) {
       media = document.createElement('img');
       media.alt = '';
       media.draggable = false;
@@ -387,13 +409,15 @@ export function createStage(container, options = {}) {
     box.classList.toggle('bordered', !!layer.border);
     media.style.transform = layer.mirror ? 'scaleX(-1)' : '';
 
-    placeholder.querySelector('.layer-badge').textContent = layer.type === 'camera' ? 'LIVE' : badgeFor(layer.src);
+    placeholder.querySelector('.layer-badge').textContent = LIVE_BADGES[layer.type] || badgeFor(layer.src);
     placeholder.querySelector('.layer-name').textContent = layer.name;
     placeholder.querySelector('.layer-note').textContent = `${layer.w} × ${layer.h}`;
     if (entry.label) entry.label.textContent = `${layer.name} · ${layer.x}, ${layer.y} · ${layer.w} × ${layer.h}`;
 
     if (layer.type === 'camera') {
       attachCamera(entry);
+    } else if (layer.source) {
+      attachSource(entry);
     } else {
       if (media.getAttribute('src') !== (layer.src || '')) {
         entry.view.w = entry.view.h = 0; // a new picture is fitted again once its size is known
@@ -406,8 +430,24 @@ export function createStage(container, options = {}) {
   }
 
   function attachCamera(entry) {
+    showStream(entry, state.cameraStream, state.cameraActive ? 'Connecting to camera…' : 'Camera is off — start it in the admin');
+  }
+
+  /** A USB device or screen share: the stream published under the overlay's source id. */
+  function attachSource(entry) {
+    const { layer } = entry;
+    let note;
+    if (state.liveSources[layer.source]) {
+      // the admin publishes it: the program waits for the video, the admin preview gets it from another window
+      note = opts.interactive ? 'Live from another admin window' : 'Connecting…';
+    } else {
+      note = layer.type === 'usb' ? 'Device is off — start it in the admin' : 'Not shared — share it again in the admin';
+    }
+    showStream(entry, state.streams.get(layer.source), note);
+  }
+
+  function showStream(entry, stream, offNote) {
     const { media, el, placeholder } = entry;
-    const stream = state.cameraStream;
     if (stream) {
       if (media.srcObject !== stream) {
         media.srcObject = stream;
@@ -417,9 +457,7 @@ export function createStage(container, options = {}) {
     } else {
       if (media.srcObject) media.srcObject = null;
       el.classList.add('no-media');
-      placeholder.querySelector('.layer-note').textContent = state.cameraActive
-        ? 'Connecting to camera…'
-        : 'Camera is off — start it in the admin';
+      placeholder.querySelector('.layer-note').textContent = offNote;
     }
   }
 
@@ -541,6 +579,8 @@ export function createStage(container, options = {}) {
     setScale,
     setCameraStream,
     setCameraActive,
+    setSourceStream,
+    setLiveSources,
     setCctvStatus,
     reloadStreams,
     sourceSize,

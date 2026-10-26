@@ -52,7 +52,7 @@
 
       <div class="panel-label">Split-screen overlays · top first</div>
       <ul id="layer-list" class="layer-list"></ul>
-      <div id="layer-empty" class="layer-empty hidden">No overlays yet. Add a camera, PNG or GIF with <strong>Add source</strong>.</div>
+      <div id="layer-empty" class="layer-empty hidden">No overlays yet. Add a camera, USB device, screen share, PNG or GIF with <strong>Add source</strong>.</div>
 
       <div class="panel-foot">Overlays stack above the main screen in the order shown. A hidden overlay stays in the layout but is not sent to program. Drag overlays in the preview to move them; drag the handles to resize.</div>
     </aside>
@@ -105,6 +105,16 @@
       </div>
 
       <div id="props" class="props hidden">
+        <!-- USB device / screen share overlays -->
+        <section id="sec-source" class="hidden">
+          <h3>Source</h3>
+          <div id="src-status" class="cctv-status"><span class="cctv-dot" aria-hidden="true"></span><span id="src-status-text"></span></div>
+          <div class="btn-row">
+            <button id="src-start" class="btn btn-ghost" type="button">Start device</button>
+            <button id="src-stop" class="btn btn-ghost" type="button">Stop</button>
+          </div>
+        </section>
+
         <section>
           <div class="section-head"><h3>Position &amp; size</h3><span class="muted mono small">output px</span></div>
           <div class="grid-2">
@@ -197,7 +207,9 @@
 
     <div class="tabs" role="tablist">
       <button type="button" class="tab active" data-tab="camera" role="tab">Local camera</button>
-      <button type="button" class="tab" data-tab="image" role="tab">PNG / GIF image</button>
+      <button type="button" class="tab" data-tab="usb" role="tab">USB device</button>
+      <button type="button" class="tab" data-tab="screen" role="tab">Screen share</button>
+      <button type="button" class="tab" data-tab="image" role="tab">PNG / GIF</button>
       <button type="button" class="tab" data-tab="main" role="tab">Main screen</button>
     </div>
 
@@ -225,6 +237,58 @@
         <button type="button" class="btn btn-ghost" data-close>Cancel</button>
         <button type="button" id="cam-stop" class="btn btn-ghost hidden">Stop camera</button>
         <button type="button" id="cam-start" class="btn btn-primary">Start camera &amp; add to layout</button>
+      </div>
+    </div>
+
+    <!-- USB device -->
+    <div class="tab-panel" data-panel="usb">
+      <div class="grid-dialog">
+        <div class="stack">
+          <label>Device<select id="usb-device"><option value="">Looking for devices…</option></select></label>
+          <label>Format<select id="usb-format"><option value="1920x1080@30">1920 × 1080 · 30 fps</option></select></label>
+          <label>Name<input id="usb-name" type="text" maxlength="80" placeholder="Capture card"></label>
+          <p class="muted small help">HDMI capture cards, webcams and other video devices plugged into this computer. Several can be live at once. A device plays while this admin page is open, and starts again by itself when the page opens again or the device is plugged back in.</p>
+          <p id="usb-error" class="error hidden"></p>
+        </div>
+        <div class="cam-preview contain">
+          <video id="usb-preview" autoplay muted playsinline></video>
+          <span id="usb-preview-tag" class="cam-preview-tag">PREVIEW</span>
+          <span class="cam-preview-hint">Choose a device to see it here</span>
+        </div>
+      </div>
+      <div class="dialog-options">
+        <label>Initial size<select id="usb-size"><option value="0.25">1/4 width · 480 px</option><option value="0.3333" selected>1/3 width · 640 px</option><option value="0.5">1/2 width · 960 px</option><option value="1">Full screen · 1920 px</option></select></label>
+        <label>Position<select id="usb-pos" class="anchor-select"></select></label>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+        <button type="button" id="usb-add" class="btn btn-primary" disabled>Add to layout</button>
+      </div>
+    </div>
+
+    <!-- screen share -->
+    <div class="tab-panel" data-panel="screen">
+      <div class="grid-dialog">
+        <div class="stack">
+          <button type="button" id="screen-pick" class="btn btn-ghost">Choose a screen or window…</button>
+          <label>Frame rate<select id="screen-fps"><option value="15">15 fps · slides and documents</option><option value="30" selected>30 fps · video and motion</option><option value="60">60 fps · games</option></select></label>
+          <label>Name<input id="screen-name" type="text" maxlength="80" placeholder="Screen share"></label>
+          <p class="muted small help">Shares a whole screen, one window or a browser tab of this computer; the browser asks which one. Add as many shares as you like, one at a time. A share runs while this admin page is open; the browser’s “Stop sharing” ends it.</p>
+          <p id="screen-error" class="error hidden"></p>
+        </div>
+        <div class="cam-preview contain">
+          <video id="screen-preview" autoplay muted playsinline></video>
+          <span id="screen-preview-tag" class="cam-preview-tag">PREVIEW</span>
+          <span class="cam-preview-hint">Choose a screen or window to see it here</span>
+        </div>
+      </div>
+      <div class="dialog-options">
+        <label>Initial size<select id="screen-size"><option value="0.3333">1/3 width · 640 px</option><option value="0.5" selected>1/2 width · 960 px</option><option value="0.6667">2/3 width · 1280 px</option><option value="1">Full screen · 1920 px</option></select></label>
+        <label>Position<select id="screen-pos" class="anchor-select"></select></label>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+        <button type="button" id="screen-add" class="btn btn-primary" disabled>Add to layout</button>
       </div>
     </div>
 

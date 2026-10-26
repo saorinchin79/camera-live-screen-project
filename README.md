@@ -1,17 +1,18 @@
 # Stream Studio — Camera Live Screen
 
 A 1920 × 1080 program output with admin-controlled split-screen overlays:
-the admin splits the screen, adds the **local camera live**, **PNG** and **GIF** images on top of the
-main screen, and sets the size and position of every window. The main screen can show a **live CCTV
-camera**, and every source can be **cropped** (cut a toolbar off a video). Changes reach the output display instantly.
+the admin splits the screen, adds the **local camera live**, **USB capture cards**, **shared screens and
+windows**, **PNG** and **GIF** images on top of the main screen, and sets the size and position of every window.
+The main screen can show a **live CCTV camera**, and every source can be **cropped** (cut a toolbar off a video).
+Changes reach the output display instantly.
 
 ```
-Admin (browser)  ──layout + camera (WebRTC)──▶  Node server  ──▶  Program output (browser, fullscreen 1920×1080)
+Admin (browser)  ──layout + camera, USB devices, screens (WebRTC)──▶  Node server  ──▶  Program output (browser, fullscreen 1920×1080)
 ```
 
 **Installing on another computer?** Follow **[INSTALL.md](INSTALL.md)**: a step-by-step guide with one-click
 installers for Windows (`Install-Windows.bat`), macOS and Linux (`setup/install.sh`), and how to connect a
-webcam and CCTV cameras.
+webcam, USB capture cards, screen sharing and CCTV cameras.
 
 ## Run
 
@@ -38,9 +39,11 @@ OBS as a **Browser Source** (1920 × 1080) to stream it.
 - **Crop** — cut a percentage off the top, bottom, left or right of any source (main screen or overlay) to remove a toolbar, a timestamp or black bars; the rest fills the window. Sliders in Properties, live in the preview.
 - **Split screen** — overlays stack on top of the main screen. Presets: Picture-in-picture, Half split, 1/2 horizontal, 1/3 horizontal, Presenter corner, Camera full screen.
 - **Local camera live** — pick the camera device, resolution and mirroring; the stream goes to every output over WebRTC (optional microphone audio).
+- **USB devices** — HDMI capture cards, webcams and any other video device plugged into the admin's computer, several at once, each as its own overlay; pick the format (size and 30 / 60 fps). A device on the layout starts again by itself when the admin page opens or the device is plugged back in.
+- **Screen share** — share a whole screen, one window or a browser tab of the admin's computer (the browser asks which) at 15, 30 or 60 fps; any number of shares, each its own overlay. *Share again…* / *Change window…* in Properties.
 - **PNG / GIF** — upload (transparency kept, GIFs animate) or reuse an uploaded file; drag and drop supported.
 - **Size & position** — drag the window in the preview, pull the handles to resize, type X / Y / Width / Height in output pixels, lock aspect ratio, quick sizes (1/4 … full width), 3 × 3 snap grid with a 48 px safe margin, arrow-key nudging.
-- **Appearance** — opacity, corner radius, fit, white border, mirror (camera).
+- **Appearance** — opacity, corner radius, fit, white border, mirror (camera, USB device).
 - **Layer order** — bring forward / send back, hide without removing, duplicate, remove.
 - **Auto take** — every change goes to the program; turn it off to prepare changes and press **Take to program**.
 - Layout is saved to `data/layout.json` and restored on restart; uploads live in `uploads/`.
@@ -114,7 +117,9 @@ The output page works over plain HTTP; only the admin needs HTTPS when it is not
 | `GET` | `/api/cctv/:id/stream.mjpg` | The camera live as `multipart/x-mixed-replace` MJPEG |
 
 Socket.IO events: `hello {role}`, `layout`, `layout:set`, `camera:state`, `peers`, `output:joined`,
-`output:left`, `admin:left`, `rtc:signal {to, data}` (WebRTC offer / answer / ICE relay),
+`output:left`, `admin:left`, `rtc:signal {to, data}` (WebRTC offer / answer / ICE relay; `data.source` is
+`camera` or the source id of a USB device or screen share — one connection per output and source),
+`sources:state` / `sources` (`{ <source id>: { kind: usb | screen, label } }` that the admin windows publish),
 `cctv:status {id, state, message, hint, width, height, viewers}` (state: idle / connecting / live / error).
 
 ## Layout format
@@ -139,6 +144,9 @@ Socket.IO events: `hello {role}`, `layout`, `layout:set`, `camera:state`, `peers
 `layers` are drawn back to front; coordinates are output pixels on the 1920 × 1080 program.
 `crop` is the percentage cut off each edge of the source (0–45 per edge) before it is fitted.
 A CCTV main screen is `{ "type": "cctv", "src": "/api/cctv/<id>/stream.mjpg", "label": "<camera name>", … }`.
+A USB device overlay is `{ "type": "usb", "source": "usb-…", "device": { "id": "<browser device id>", "label": "<device name>",
+"width": 1920, "height": 1080, "fps": 30 }, … }`, a screen share `{ "type": "screen", "source": "screen-…", … }`;
+overlays with the same `source` show the same stream.
 
 ## Project structure
 

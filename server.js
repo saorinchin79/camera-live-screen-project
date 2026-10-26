@@ -211,6 +211,12 @@ const io = new Server(server, { maxHttpBufferSize: 1e6 });
 /** socket.id -> { role: 'admin' | 'output', name } */
 const peers = new Map();
 let cameraState = { active: false, label: '' };
+/** admin socket id -> the USB devices and screen shares it publishes: { source id: { kind, label } } */
+const liveSources = new Map();
+
+function allLiveSources() {
+  return Object.assign({}, ...liveSources.values());
+}
 
 function outputIds() {
   return [...peers.entries()].filter(([, p]) => p.role === 'output').map(([id]) => id);
@@ -229,6 +235,8 @@ io.on('connection', (socket) => {
   socket.on('hello', (info = {}) => {
     const role = info.role === 'admin' ? 'admin' : 'output';
     peers.set(socket.id, { role, name: String(info.name || '').slice(0, 60) });
+    // before the layout: an admin window restarts only the USB devices no other window publishes
+    socket.emit('sources', allLiveSources());
     socket.emit('layout', layout);
     socket.emit('camera:state', cameraState);
     for (const status of cctv.statuses()) socket.emit('cctv:status', status);
@@ -256,6 +264,19 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('camera:state', cameraState);
   });
 
+  // Admin reports the USB devices and screen shares it publishes (outputs say "Connecting…" for those)
+  socket.on('sources:state', (list) => {
+    const peer = peers.get(socket.id);
+    if (!peer || peer.role !== 'admin') return;
+    const clean = {};
+    for (const [id, s] of Object.entries(list && typeof list === 'object' ? list : {}).slice(0, 32)) {
+      if (!/^[a-z0-9-]{1,40}$/.test(id) || !s || typeof s !== 'object') continue;
+      clean[id] = { kind: s.kind === 'screen' ? 'screen' : 'usb', label: String(s.label || '').slice(0, 80) };
+    }
+    liveSources.set(socket.id, clean);
+    io.emit('sources', allLiveSources());
+  });
+
   // WebRTC signaling relay: { to, data } -> delivered as { from, data }
   socket.on('rtc:signal', ({ to, data } = {}) => {
     if (!to || !peers.has(to)) return;
@@ -275,6 +296,7 @@ io.on('connection', (socket) => {
     if (peer && peer.role === 'admin') {
       for (const id of outputIds()) io.to(id).emit('admin:left', { id: socket.id });
     }
+    if (liveSources.delete(socket.id)) io.emit('sources', allLiveSources());
     broadcastPeers();
   });
 });

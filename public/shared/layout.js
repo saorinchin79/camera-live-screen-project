@@ -3,7 +3,7 @@
  *
  * A layout describes the 1920x1080 program:
  *   main   — what fills the whole screen (placeholder, uploaded video or image, live CCTV camera)
- *   layers — split-screen overlays drawn on top, back to front (camera / image)
+ *   layers — split-screen overlays drawn on top, back to front (local camera, USB device, shared screen, image)
  * Every source can be cropped: `crop` cuts a percentage off each edge before the rest is fitted.
  */
 (function (root, factory) {
@@ -16,7 +16,12 @@
   const OUTPUT_H = 1080;
   const SAFE_MARGIN = 48;
 
-  const LAYER_TYPES = ['camera', 'image'];
+  const LAYER_TYPES = ['camera', 'image', 'usb', 'screen'];
+  /** Overlays that show live video from the admin's browser: its camera, a USB device, a shared screen or window. */
+  const LIVE_TYPES = ['camera', 'usb', 'screen'];
+  const LAYER_NAMES = { camera: 'Local Camera', image: 'Image', usb: 'USB device', screen: 'Screen share' };
+  /** A USB device or screen share is published by the admin under a source id; its overlays show that stream. */
+  const SOURCE_ID = /^[a-z0-9-]{1,40}$/;
   const FITS = ['cover', 'contain', 'fill'];
   const MAIN_TYPES = ['placeholder', 'video', 'image', 'cctv'];
 
@@ -46,7 +51,7 @@
     template: 'pip',
   };
 
-  /** Split-screen templates: where the (first) camera layer goes. Images keep their place. */
+  /** Split-screen templates: where the camera layer goes (see templateTarget). Images keep their place. */
   const TEMPLATES = {
     pip: { label: 'Picture-in-picture', desc: 'Camera top-left', camera: { x: 48, y: 48, w: 640, h: 360 } },
     side: { label: 'Half split', desc: 'Camera fills the right half', camera: { x: 960, y: 0, w: 960, h: 1080 } },
@@ -124,15 +129,27 @@
     return !!crop && CROP_EDGES.some((edge) => crop[edge] > 0);
   }
 
+  /** The USB device an overlay shows (the browser's device id and name) and the format to capture it in; 0 = any. */
+  function sanitizeDevice(raw) {
+    const d = raw && typeof raw === 'object' ? raw : {};
+    return {
+      id: typeof d.id === 'string' ? d.id.slice(0, 200) : '',
+      label: String(d.label || '').slice(0, 120),
+      width: clamp(Math.round(num(d.width, 0)), 0, 7680),
+      height: clamp(Math.round(num(d.height, 0)), 0, 4320),
+      fps: clamp(Math.round(num(d.fps, 0)), 0, 240),
+    };
+  }
+
   function sanitizeLayer(raw, index) {
     const l = raw && typeof raw === 'object' ? raw : {};
     const type = LAYER_TYPES.includes(l.type) ? l.type : 'image';
     const w = clamp(Math.round(num(l.w, 640)), 16, OUTPUT_W);
     const h = clamp(Math.round(num(l.h, 360)), 16, OUTPUT_H);
-    return {
+    const layer = {
       id: typeof l.id === 'string' && l.id ? l.id.slice(0, 64) : uid(type) + index,
       type,
-      name: String(l.name || (type === 'camera' ? 'Local Camera' : 'Image')).slice(0, 80),
+      name: String(l.name || LAYER_NAMES[type]).slice(0, 80),
       src: type === 'image' && isSafeSrc(l.src) ? l.src : '',
       x: clamp(Math.round(num(l.x, 0)), -OUTPUT_W, OUTPUT_W),
       y: clamp(Math.round(num(l.y, 0)), -OUTPUT_H, OUTPUT_H),
@@ -146,6 +163,9 @@
       border: l.border !== false,
       crop: sanitizeCrop(l.crop),
     };
+    if (type === 'usb' || type === 'screen') layer.source = SOURCE_ID.test(l.source) ? l.source : uid(type);
+    if (type === 'usb') layer.device = sanitizeDevice(l.device);
+    return layer;
   }
 
   function sanitizeLayout(raw) {
@@ -216,17 +236,16 @@
     return constrain(Object.assign({}, layer, { w, h }));
   }
 
+  /** The overlay a template moves: the local camera, or without one the first USB device or screen share. */
+  function templateTarget(layers) {
+    return layers.find((l) => l.type === 'camera') || layers.find((l) => LIVE_TYPES.includes(l.type)) || null;
+  }
+
   function applyTemplate(layout, templateId) {
     const t = TEMPLATES[templateId];
-    if (!t) return layout;
-    let done = false;
-    const layers = layout.layers.map((l) => {
-      if (l.type === 'camera' && !done) {
-        done = true;
-        return constrain(Object.assign({}, l, t.camera));
-      }
-      return l;
-    });
+    const target = t ? templateTarget(layout.layers) : null;
+    if (!target) return layout;
+    const layers = layout.layers.map((l) => (l === target ? constrain(Object.assign({}, l, t.camera)) : l));
     return Object.assign({}, layout, { layers, template: templateId });
   }
 
@@ -239,6 +258,7 @@
     OUTPUT_H,
     SAFE_MARGIN,
     LAYER_TYPES,
+    LIVE_TYPES,
     FITS,
     MAIN_TYPES,
     MAIN_ID,
@@ -256,12 +276,14 @@
     cctvIdOf,
     sanitizeCrop,
     hasCrop,
+    sanitizeDevice,
     sanitizeLayer,
     sanitizeLayout,
     constrain,
     snapToAnchor,
     anchorOf,
     resizeToFraction,
+    templateTarget,
     applyTemplate,
     newLayer,
   };

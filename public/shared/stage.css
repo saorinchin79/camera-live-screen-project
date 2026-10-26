@@ -183,9 +183,17 @@
   letter-spacing: 0.08em;
 }
 
-.layer-camera .layer-badge {
+.layer-camera .layer-badge,
+.layer-usb .layer-badge,
+.layer-screen .layer-badge {
   background: #d7322e;
   color: #fff;
+}
+
+/* a shared window keeps its own shape: black around it, like a letterboxed video */
+.layer-screen .layer-box,
+.layer-screen .layer-placeholder {
+  background: #000;
 }
 
 .layer-name {

@@ -1,7 +1,7 @@
 /**
  * Program output — shows the 1920x1080 program and follows the admin's layout in real time.
- * The admin's local camera arrives over WebRTC (signaling relayed by the server); a CCTV main screen
- * is an MJPEG stream from the server.
+ * The admin's live sources (local camera, USB devices, screen shares) arrive over WebRTC, one connection per
+ * source (signaling relayed by the server); a CCTV main screen is an MJPEG stream from the server.
  */
 import { createStage } from '/shared/stage.js';
 
@@ -49,7 +49,7 @@ document.addEventListener('mousemove', () => {
 // ---------- realtime layout ----------
 
 const socket = io();
-const peers = new Map(); // admin socket id -> RTCPeerConnection
+const peers = new Map(); // `${admin socket id}|${source id}` -> { pc, pending, from, source }
 let connectedBefore = false;
 
 socket.on('connect', () => {
@@ -70,57 +70,68 @@ socket.on('camera:state', (state) => {
   stage.setCameraActive(state.active, state.label);
 });
 
+socket.on('sources', (sources) => stage.setLiveSources(sources));
+
 socket.on('admin:left', ({ id }) => {
-  closePeer(id);
+  for (const entry of [...peers.values()]) {
+    if (entry.from === id) closePeer(entry.from, entry.source);
+  }
 });
 
-// ---------- WebRTC: receive the admin's camera ----------
+// ---------- WebRTC: receive the admin's live sources ----------
+
+/** "camera" is the local camera; any other source id is a USB device or a screen share. */
+function showSource(source, stream) {
+  if (source === 'camera') stage.setCameraStream(stream);
+  else stage.setSourceStream(source, stream);
+}
 
 socket.on('rtc:signal', async ({ from, data }) => {
   if (!data) return;
+  const source = data.source || 'camera';
+  const key = `${from}|${source}`;
   try {
     if (data.sdp && data.sdp.type === 'offer') {
-      closePeer(from);
+      closePeer(from, source);
       const pc = new RTCPeerConnection(RTC_CONFIG);
-      const entry = { pc, pending: [] };
-      peers.set(from, entry);
+      const entry = { pc, pending: [], from, source };
+      peers.set(key, entry);
 
-      pc.ontrack = (e) => {
-        const stream = e.streams[0] || new MediaStream([e.track]);
-        stage.setCameraStream(stream);
-      };
+      pc.ontrack = (e) => showSource(source, e.streams[0] || new MediaStream([e.track]));
       pc.onicecandidate = (e) => {
-        if (e.candidate) socket.emit('rtc:signal', { to: from, data: { candidate: e.candidate } });
+        if (e.candidate) socket.emit('rtc:signal', { to: from, data: { source, candidate: e.candidate } });
       };
       pc.onconnectionstatechange = () => {
         if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) {
-          if (peers.get(from)?.pc === pc) stage.setCameraStream(null);
+          if (peers.get(key)?.pc === pc) showSource(source, null);
         }
       };
 
       await pc.setRemoteDescription(data.sdp);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      socket.emit('rtc:signal', { to: from, data: { sdp: pc.localDescription } });
+      socket.emit('rtc:signal', { to: from, data: { source, sdp: pc.localDescription } });
       for (const c of entry.pending) await pc.addIceCandidate(c).catch(() => {});
       entry.pending = [];
     } else if (data.candidate) {
-      const entry = peers.get(from);
+      const entry = peers.get(key);
       if (!entry) return;
       if (entry.pc.remoteDescription) await entry.pc.addIceCandidate(data.candidate).catch(() => {});
       else entry.pending.push(data.candidate);
     } else if (data.bye) {
-      closePeer(from);
+      closePeer(from, source);
     }
   } catch (err) {
     console.error('WebRTC error', err);
   }
 });
 
-function closePeer(id) {
-  const entry = peers.get(id);
+function closePeer(from, source) {
+  const key = `${from}|${source}`;
+  const entry = peers.get(key);
   if (!entry) return;
   try { entry.pc.close(); } catch (_) { /* ignore */ }
-  peers.delete(id);
-  if (peers.size === 0) stage.setCameraStream(null);
+  peers.delete(key);
+  // another admin window may still send the same source
+  if (![...peers.values()].some((e) => e.source === source)) showSource(source, null);
 }
