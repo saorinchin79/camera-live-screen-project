@@ -36,25 +36,33 @@
     <aside class="panel panel-left">
       <div class="panel-head">
         <h2>Sources</h2>
-        <button id="btn-add" class="btn btn-primary btn-sm" type="button">
+        <button id="btn-add" class="btn btn-primary btn-sm" type="button" title="Add a source to the split screen">
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 2v10M2 7h10"></path></svg>Add source
         </button>
       </div>
 
-      <button id="btn-main" class="main-row" type="button" title="Select the main screen to change its source, fit and crop">
-        <span class="main-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="11" rx="2"></rect><path d="M7 18h6"></path></svg></span>
+      <!-- each card opens Add source for its screen; the screen's layers are listed under it -->
+      <button id="btn-main" class="group-card empty" type="button" title="Add a source to the main screen">
+        <span class="card-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="11" rx="2"></rect><path d="M7 18h6"></path></svg></span>
         <span class="main-text">
           <span class="row-name">Main Screen</span>
-          <span id="main-meta" class="row-meta">Placeholder · 1920 × 1080</span>
+          <span id="main-meta" class="row-meta">Click to add a source</span>
         </span>
-        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 3l5 5-5 5"></path></svg>
+        <span class="card-add" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 2v10M2 7h10"></path></svg></span>
       </button>
+      <ul id="main-layers" class="layer-list" aria-label="Main screen layers"></ul>
 
-      <div class="panel-label">Split-screen overlays · top first</div>
-      <ul id="layer-list" class="layer-list"></ul>
-      <div id="layer-empty" class="layer-empty hidden">No overlays yet. Add a camera, USB device, screen share, PNG or GIF with <strong>Add source</strong>.</div>
+      <button id="btn-split" class="group-card empty" type="button" title="Add a source to the split screen">
+        <span class="card-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="11" rx="2"></rect><path d="M7 18h6"></path><path d="M5 7h5v3.5H5z"></path></svg></span>
+        <span class="main-text">
+          <span class="row-name">Split Screen</span>
+          <span id="split-meta" class="row-meta">Click to add a source</span>
+        </span>
+        <span class="card-add" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 2v10M2 7h10"></path></svg></span>
+      </button>
+      <ul id="split-layers" class="layer-list" aria-label="Split screen layers"></ul>
 
-      <div class="panel-foot">Overlays stack above the main screen in the order shown. A hidden overlay stays in the layout but is not sent to program. Drag overlays in the preview to move them; drag the handles to resize.</div>
+      <div class="panel-foot">The split screen is drawn above the main screen; under each card the top layer comes first. A hidden layer stays in the layout but is not sent to program. Drag layers in the preview to move them; drag the handles to resize.</div>
     </aside>
 
     <!-- ===== Preview ===== -->
@@ -65,7 +73,7 @@
           <span id="scale-chip" class="chip mono">60 % scale</span>
           <span id="template-status" class="chip mono">Preset layout</span>
         </div>
-        <span class="muted small">Click an overlay to select it · drag to move · handles resize · arrow keys nudge (Shift = 10 px)</span>
+        <span class="muted small">Click a layer to select it · drag to move · handles resize · arrow keys nudge (Shift = 10 px)</span>
       </div>
       <div id="monitor" class="monitor">
         <div id="preview"></div>
@@ -83,13 +91,13 @@
         <div id="props-title" class="props-title hidden">
           <span id="props-badge" class="badge">LIVE</span>
           <span class="main-text">
-            <input id="f-name" class="name-input" type="text" aria-label="Overlay name" maxlength="80">
+            <input id="f-name" class="name-input" type="text" aria-label="Layer name" maxlength="80">
             <span id="props-src" class="row-meta"></span>
           </span>
         </div>
       </div>
 
-      <div id="props-empty" class="props-empty">Select the main screen, or an overlay in the list or the preview, to edit it.</div>
+      <div id="props-empty" class="props-empty">Click <strong>Main Screen</strong> or <strong>Split Screen</strong> to add a source. Select a layer under them, or in the preview, to edit it.</div>
 
       <div id="main-props" class="props hidden">
         <section>
@@ -134,7 +142,7 @@
           <h3>Snap to position</h3>
           <div class="snap-row">
             <div id="anchor-grid" class="anchor-grid"></div>
-            <span class="muted small">Snaps the overlay to a corner, edge or the centre with a 48 px safe margin. Fine-tune with X / Y or drag it in the preview.</span>
+            <span class="muted small">Snaps the layer to a corner, edge or the centre with a 48 px safe margin. Fine-tune with X / Y or drag it in the preview.</span>
           </div>
         </section>
 
@@ -173,8 +181,9 @@
           </div>
           <div class="btn-row">
             <button id="btn-duplicate" class="btn btn-ghost" type="button">Duplicate</button>
-            <button id="btn-delete" class="btn btn-danger" type="button">Remove overlay</button>
+            <button id="btn-delete" class="btn btn-danger" type="button">Remove layer</button>
           </div>
+          <button id="btn-group" class="btn btn-ghost" type="button">Move to main screen</button>
         </section>
       </div>
     </aside>
@@ -183,7 +192,7 @@
   <footer class="footer">
     <div class="footer-status">
       <span class="mono">Output 1920 × 1080 · 16:9</span>
-      <span id="status-layers">0 overlays</span>
+      <span id="status-layers">0 layers</span>
       <span id="status-sync" class="muted">Saved</span>
     </div>
     <div class="footer-actions">
@@ -199,18 +208,17 @@
   <form method="dialog" class="dialog-body" id="add-form">
     <div class="dialog-head">
       <div>
-        <h1>Add source to split screen</h1>
-        <p class="muted small">Appears as an overlay on top of the main screen. You can resize and move it afterwards.</p>
+        <h1 id="add-title">Add source to split screen</h1>
+        <p id="add-sub" class="muted small">Appears as a window on top of the main screen. You can resize and move it afterwards.</p>
       </div>
       <button class="icon-btn" type="button" data-close aria-label="Close"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"></path></svg></button>
     </div>
 
     <div class="tabs" role="tablist">
+      <button type="button" class="tab" data-tab="main" role="tab">Custom</button>
       <button type="button" class="tab active" data-tab="camera" role="tab">Local camera</button>
       <button type="button" class="tab" data-tab="usb" role="tab">USB device</button>
       <button type="button" class="tab" data-tab="screen" role="tab">Screen share</button>
-      <button type="button" class="tab" data-tab="image" role="tab">PNG / GIF</button>
-      <button type="button" class="tab" data-tab="main" role="tab">Main screen</button>
     </div>
 
     <!-- camera -->
@@ -229,7 +237,7 @@
           <span id="cam-preview-hint" class="cam-preview-hint">Allow camera access in the browser to see the live preview</span>
         </div>
       </div>
-      <div class="dialog-options">
+      <div class="dialog-options placement">
         <label>Initial size<select id="cam-size"><option value="0.25">1/4 width · 480 px</option><option value="0.3333" selected>1/3 width · 640 px</option><option value="0.5">1/2 width · 960 px</option></select></label>
         <label>Position<select id="cam-pos" class="anchor-select"></select></label>
       </div>
@@ -256,7 +264,7 @@
           <span class="cam-preview-hint">Choose a device to see it here</span>
         </div>
       </div>
-      <div class="dialog-options">
+      <div class="dialog-options placement">
         <label>Initial size<select id="usb-size"><option value="0.25">1/4 width · 480 px</option><option value="0.3333" selected>1/3 width · 640 px</option><option value="0.5">1/2 width · 960 px</option><option value="1">Full screen · 1920 px</option></select></label>
         <label>Position<select id="usb-pos" class="anchor-select"></select></label>
       </div>
@@ -282,7 +290,7 @@
           <span class="cam-preview-hint">Choose a screen or window to see it here</span>
         </div>
       </div>
-      <div class="dialog-options">
+      <div class="dialog-options placement">
         <label>Initial size<select id="screen-size"><option value="0.3333">1/3 width · 640 px</option><option value="0.5" selected>1/2 width · 960 px</option><option value="0.6667">2/3 width · 1280 px</option><option value="1">Full screen · 1920 px</option></select></label>
         <label>Position<select id="screen-pos" class="anchor-select"></select></label>
       </div>
@@ -292,75 +300,80 @@
       </div>
     </div>
 
-    <!-- image -->
-    <div class="tab-panel" data-panel="image">
-      <div class="grid-dialog">
-        <label class="dropzone" id="dropzone">
-          <svg aria-hidden="true" width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#4c9bff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="28" height="28" rx="4"></rect><circle cx="13" cy="13" r="3"></circle><path d="M32 24l-8-8-14 14"></path></svg>
-          <span class="strong">Drop a PNG or GIF here</span>
-          <span class="muted small">or click to browse · PNG transparency is kept · GIFs animate on program</span>
-          <span id="img-file-name" class="mono small"></span>
-          <input id="img-file" type="file" accept="image/png,image/gif,image/jpeg,image/webp" class="visually-hidden">
-        </label>
-        <div class="stack">
-          <span class="muted small strong">Or reuse an uploaded file</span>
-          <ul id="img-library" class="library"><li class="muted small">Loading…</li></ul>
-        </div>
-      </div>
-      <div class="dialog-options">
-        <label>Initial size<select id="img-size"><option value="natural">Natural size</option><option value="0.1">1/10 width · 192 px</option><option value="0.25" selected>1/4 width · 480 px</option><option value="0.3333">1/3 width · 640 px</option><option value="0.5">1/2 width · 960 px</option></select></label>
-        <label>Position<select id="img-pos" class="anchor-select"></select></label>
-      </div>
-      <p id="img-error" class="error hidden"></p>
-      <div class="dialog-actions">
-        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
-        <button type="button" id="img-add" class="btn btn-primary" disabled>Upload &amp; add to layout</button>
-      </div>
-    </div>
-
-    <!-- main screen -->
+    <!-- custom: the main screen's own picture, or a PNG / GIF on either screen (all the split screen takes from here) -->
     <div class="tab-panel" data-panel="main">
-      <div class="stack">
-        <div class="radio-row">
-          <label class="check"><input type="radio" name="main-type" value="placeholder" checked>Placeholder</label>
-          <label class="check"><input type="radio" name="main-type" value="video">Video file</label>
-          <label class="check"><input type="radio" name="main-type" value="image">Image file</label>
-          <label class="check"><input type="radio" name="main-type" value="url">Video URL</label>
-          <label class="check"><input type="radio" name="main-type" value="cctv">Live CCTV camera</label>
-        </div>
-        <label data-main="placeholder">Placeholder text<input id="main-label" type="text" value="Main Screen" maxlength="80"></label>
-        <label data-main="video" class="hidden">Video file (MP4 / WebM)<input id="main-video" type="file" accept="video/mp4,video/webm"></label>
-        <label data-main="image" class="hidden">Image file (PNG / JPG / WebP)<input id="main-image" type="file" accept="image/png,image/jpeg,image/webp"></label>
-        <label data-main="url" class="hidden">Direct video URL (.mp4 / .webm)<input id="main-url" type="url" placeholder="https://…/program.mp4"></label>
-        <div data-main="cctv" class="stack hidden">
-          <div class="grid-cctv">
-            <label>Camera<select id="cctv-select"></select></label>
-            <label>Frame rate<select id="cctv-fps"><option value="5">5 fps</option><option value="10">10 fps</option><option value="15">15 fps</option><option value="25">25 fps</option></select></label>
-          </div>
-          <label>Camera name<input id="cctv-name" type="text" maxlength="60" placeholder="Front gate"></label>
-          <label>Stream URL<input id="cctv-url" type="text" spellcheck="false" autocomplete="off" placeholder="rtsp://admin:password@192.168.1.64:554/Streaming/Channels/101"></label>
-          <p class="muted small cctv-help">Use the camera’s or NVR’s RTSP address. Hikvision: <span class="mono">rtsp://user:password@IP:554/Streaming/Channels/101</span> (102 = sub stream). Dahua / Imou: <span class="mono">rtsp://user:password@IP:554/cam/realmonitor?channel=1&amp;subtype=0</span>. RTMP, HTTP MJPEG and .m3u8 links work too. The password stays on the server.</p>
-          <div class="cctv-test">
-            <div class="cctv-shot"><img id="cctv-shot" class="hidden" alt="Test frame from the camera"><span id="cctv-shot-hint" class="muted small">Test the camera to see a frame from it here</span></div>
-            <div class="stack">
-              <button type="button" id="cctv-test" class="btn btn-ghost">Test connection</button>
-              <p id="cctv-result" class="small"></p>
-              <button type="button" id="cctv-delete" class="btn btn-ghost btn-danger hidden">Delete this camera</button>
+      <div id="main-types" class="radio-row">
+        <label class="check"><input type="radio" name="main-type" value="placeholder" checked>Placeholder</label>
+        <label class="check"><input type="radio" name="main-type" value="video">Video file</label>
+        <label class="check"><input type="radio" name="main-type" value="image">Image file</label>
+        <label class="check"><input type="radio" name="main-type" value="url">Video URL</label>
+        <label class="check"><input type="radio" name="main-type" value="cctv">Live CCTV camera</label>
+        <label class="check"><input type="radio" name="main-type" value="png">PNG / GIF</label>
+      </div>
+
+      <!-- the main screen's own picture -->
+      <div class="panel-part" data-main="placeholder video image url cctv">
+        <div class="stack">
+          <label data-main="placeholder">Placeholder text<input id="main-label" type="text" value="Main Screen" maxlength="80"></label>
+          <label data-main="video" class="hidden">Video file (MP4 / WebM)<input id="main-video" type="file" accept="video/mp4,video/webm"></label>
+          <label data-main="image" class="hidden">Image file (PNG / JPG / WebP)<input id="main-image" type="file" accept="image/png,image/jpeg,image/webp"></label>
+          <label data-main="url" class="hidden">Direct video URL (.mp4 / .webm)<input id="main-url" type="url" placeholder="https://…/program.mp4"></label>
+          <div data-main="cctv" class="stack hidden">
+            <div class="grid-cctv">
+              <label>Camera<select id="cctv-select"></select></label>
+              <label>Frame rate<select id="cctv-fps"><option value="5">5 fps</option><option value="10">10 fps</option><option value="15">15 fps</option><option value="25">25 fps</option></select></label>
+            </div>
+            <label>Camera name<input id="cctv-name" type="text" maxlength="60" placeholder="Front gate"></label>
+            <label>Stream URL<input id="cctv-url" type="text" spellcheck="false" autocomplete="off" placeholder="rtsp://admin:password@192.168.1.64:554/Streaming/Channels/101"></label>
+            <p class="muted small cctv-help">Use the camera’s or NVR’s RTSP address. Hikvision: <span class="mono">rtsp://user:password@IP:554/Streaming/Channels/101</span> (102 = sub stream). Dahua / Imou: <span class="mono">rtsp://user:password@IP:554/cam/realmonitor?channel=1&amp;subtype=0</span>. RTMP, HTTP MJPEG and .m3u8 links work too. The password stays on the server.</p>
+            <div class="cctv-test">
+              <div class="cctv-shot"><img id="cctv-shot" class="hidden" alt="Test frame from the camera"><span id="cctv-shot-hint" class="muted small">Test the camera to see a frame from it here</span></div>
+              <div class="stack">
+                <button type="button" id="cctv-test" class="btn btn-ghost">Test connection</button>
+                <p id="cctv-result" class="small"></p>
+                <button type="button" id="cctv-delete" class="btn btn-ghost btn-danger hidden">Delete this camera</button>
+              </div>
             </div>
           </div>
+          <div class="dialog-options">
+            <label>Fit<select id="main-fit"><option value="cover">Cover (crop to fill)</option><option value="contain">Contain (letterbox)</option><option value="fill">Stretch</option></select></label>
+            <div id="main-video-opts" class="stack compact">
+              <label class="check"><input id="main-loop" type="checkbox" checked>Loop video</label>
+              <label class="check"><input id="main-muted" type="checkbox" checked>Mute video (required for autoplay)</label>
+            </div>
+          </div>
+          <p id="main-error" class="error hidden"></p>
         </div>
-        <div class="dialog-options">
-          <label>Fit<select id="main-fit"><option value="cover">Cover (crop to fill)</option><option value="contain">Contain (letterbox)</option><option value="fill">Stretch</option></select></label>
-          <div id="main-video-opts" class="stack compact">
-            <label class="check"><input id="main-loop" type="checkbox" checked>Loop video</label>
-            <label class="check"><input id="main-muted" type="checkbox" checked>Mute video (required for autoplay)</label>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+          <button type="button" id="main-apply" class="btn btn-primary">Apply to main screen</button>
+        </div>
+      </div>
+
+      <!-- PNG / GIF: an image layer on the screen the dialog adds to -->
+      <div class="panel-part hidden" data-main="png">
+        <div class="grid-dialog">
+          <label class="dropzone" id="dropzone">
+            <svg aria-hidden="true" width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#4c9bff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="28" height="28" rx="4"></rect><circle cx="13" cy="13" r="3"></circle><path d="M32 24l-8-8-14 14"></path></svg>
+            <span class="strong">Drop a PNG or GIF here</span>
+            <span class="muted small">or click to browse · PNG transparency is kept · GIFs animate on program</span>
+            <span id="img-file-name" class="mono small"></span>
+            <input id="img-file" type="file" accept="image/png,image/gif,image/jpeg,image/webp" class="visually-hidden">
+          </label>
+          <div class="stack">
+            <span class="muted small strong">Or reuse an uploaded file</span>
+            <ul id="img-library" class="library"><li class="muted small">Loading…</li></ul>
           </div>
         </div>
-        <p id="main-error" class="error hidden"></p>
-      </div>
-      <div class="dialog-actions">
-        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
-        <button type="button" id="main-apply" class="btn btn-primary">Apply to main screen</button>
+        <div class="dialog-options placement">
+          <label>Initial size<select id="img-size"><option value="natural">Natural size</option><option value="0.1">1/10 width · 192 px</option><option value="0.25" selected>1/4 width · 480 px</option><option value="0.3333">1/3 width · 640 px</option><option value="0.5">1/2 width · 960 px</option></select></label>
+          <label>Position<select id="img-pos" class="anchor-select"></select></label>
+        </div>
+        <p id="img-error" class="error hidden"></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+          <button type="button" id="img-add" class="btn btn-primary" disabled>Upload &amp; add to layout</button>
+        </div>
       </div>
     </div>
   </form>

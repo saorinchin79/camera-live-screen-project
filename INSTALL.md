@@ -208,6 +208,21 @@ The browser shows a "sharing" bar while a share runs; **Stop sharing** there end
 to show another window in its place. After the admin page is reloaded, shares have to be started again this way:
 browsers never share a screen without asking.
 
+### 6.4 On the main screen or in the split screen
+
+**Sources** has two cards, and each one opens **Add source**:
+
+- **Main Screen**: what you add fills the whole program, such as a shared browser tab, a capture card or the webcam.
+  Here the **Custom** tab also gives the main screen its own video, picture or CCTV camera underneath (see 7.3).
+- **Split Screen**: what you add is a window on top of the main screen, such as the webcam in a corner. The
+  **Add source** button at the top does the same.
+
+PNG and GIF pictures, such as a logo or an animated sticker, are in the **Custom** tab for both cards.
+
+Each source shows under its card as a layer. Click a layer to change it in **Properties**: size and position, crop,
+order. **Move to main screen** / **Move to split screen** under **Layer** moves it to the other card. The split layouts
+(Picture-in-picture, Half split, …) arrange the split screen's camera.
+
 ---
 
 ## 7. Add a CCTV camera
@@ -260,19 +275,21 @@ Optional check: in **VLC media player** choose **Media → Open Network Stream**
 
 ### 7.3 Put the camera on the main screen
 
-1. In the admin page, click **Main Screen** (left, at the top of Sources).
-2. In **Properties** (right), click **Change main screen source…**.
-3. Choose **Live CCTV camera**.
-4. Fill in:
+1. In the admin page, click **Main Screen** (left, at the top of Sources). The **Add source** window opens on the
+   **Custom** tab.
+2. Choose **Live CCTV camera**.
+3. Fill in:
    - **Camera name**, for example *Front gate*
    - **Stream URL**: the address from 7.2
    - **Frame rate**: 15 fps is smooth and light; choose 5 or 10 fps for a slow computer or network
-5. Click **Test connection**. After a few seconds you see a picture from the camera and
+4. Click **Test connection**. After a few seconds you see a picture from the camera and
    **"Connected · 1920 × 1080 · H264"**. If you see an error instead, check the table in 7.6.
-6. Click **Apply to main screen**. The camera fills the program and is live.
+5. Click **Apply to main screen**. The camera fills the program and is live, and shows under **Main Screen** in
+   Sources.
 
-The camera is saved. To add more cameras, choose **+ Add a new camera** in the **Camera** list. To switch, pick
-another camera and click **Apply to main screen** again.
+The camera is saved. To add more cameras, choose **+ Add a new camera** in the **Camera** list. To switch, click
+**Main Screen** again (or the pencil next to the camera under it), pick another camera and click
+**Apply to main screen**.
 
 The password is kept on this computer only. The admin page shows it as `••••`, and the screens never receive it.
 
@@ -280,7 +297,7 @@ The password is kept on this computer only. The admin page shows it as `••�
 
 Many CCTV pictures, and screen recordings of CCTV apps, have a timestamp, a channel name or a toolbar along an edge.
 
-1. Click **Main Screen** in Sources.
+1. In Sources, click the camera under **Main Screen**.
 2. In **Properties → Crop**, drag **Top**, **Bottom**, **Left** or **Right** until the toolbar is gone.
    The preview changes as you drag.
 3. **Reset** puts the picture back.
@@ -294,8 +311,8 @@ pictures: select them and use **Crop** in Properties.
 - **"LIVE CCTV · CONNECTING…"** on the main screen until the first picture arrives (a few seconds).
 - **"● RECONNECTING"** in the top-right corner when the camera drops. Stream Studio tries again by itself, and the
   picture comes back when the camera is reachable again.
-- The admin page shows the status under **Main Screen → Properties → Source**, for example
-  **"Live · 1920 × 1080 · 2 viewers"**, or what is wrong.
+- The admin page shows the status when you click the camera under **Main Screen**, in **Properties → Source**, for
+  example **"Live · 1920 × 1080 · 2 viewers"**, or what is wrong.
 
 ### 7.6 If the test fails
 
@@ -398,7 +415,7 @@ Delete these:
 | A shared window is black on the program | Some programs block window capture: share the whole **screen** instead, or turn off the program's hardware acceleration |
 | A TV or other computer cannot open the output | Use the **LAN** address, not `localhost`. Allow Node.js in the firewall and set the Windows network to **Private** |
 | The CCTV picture is slow or jerky | Use the camera's **sub stream** and a lower frame rate (5 or 10 fps) |
-| A CCTV camera stops working after its password was changed | Main Screen → Change main screen source… → Live CCTV camera → pick the camera, type the new password into the Stream URL, Test connection, Apply |
+| A CCTV camera stops working after its password was changed | Main Screen → Live CCTV camera → pick the camera, type the new password into the Stream URL, Test connection, Apply |
 
 ---
 

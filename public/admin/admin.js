@@ -1,8 +1,9 @@
 /**
  * Admin — split-screen layout editor.
  *
- * - Edits the layout (overlays: local camera, USB devices, shared screens and windows, PNG/GIF images;
- *   main screen: placeholder/video/image/live CCTV)
+ * - Edits the layout: the main screen (its own placeholder/video/image/live CCTV picture, and layers that fill it)
+ *   and the split screen's windows on top; a layer is the local camera, a USB device, a shared screen or window,
+ *   or a PNG/GIF image. The Main Screen and Split Screen cards open Add source for their screen
  * - Crops any source (main screen or overlay) to cut toolbars and black bars off its edges
  * - Live preview with drag-to-move and resize handles (shared stage renderer)
  * - Sends the layout to every program output over Socket.IO ("Auto take" or "Take to program")
@@ -34,6 +35,7 @@ const state = {
   peers: new Map(), // `${output socket id}|${source id}` -> RTCPeerConnection
   library: [],
   pendingImage: null, // { file } or { url, name }
+  addGroup: 'split', // the screen the Add source dialog adds to: 'main' or 'split'
   cctv: { cameras: [], status: new Map() }, // saved CCTV cameras (passwords masked) + live status by id
 };
 
@@ -71,9 +73,8 @@ window.addEventListener('resize', fitPreview);
 let pushTimer = null;
 
 function setLayout(next, { push = true } = {}) {
-  const sanitized = L.sanitizeLayout(next);
-  state.layout = sanitized;
-  if (state.selectedId && !sanitized.layers.some((l) => l.id === state.selectedId)) state.selectedId = null;
+  state.layout = L.sanitizeLayout(next);
+  dropStaleSelection();
   releaseUnused();
   renderAll();
   if (push) pushLayout();
@@ -100,7 +101,7 @@ function updateLayer(id, patch, { live = false, fromStage = false } = {}) {
   if (live) {
     // mid-drag: the stage already moved the element; refresh numbers only, throttle network
     renderProps();
-    renderList();
+    renderSources();
     renderTemplates();
     if (state.autoTake) throttledPush();
     return;
@@ -138,13 +139,20 @@ function selectedLayer() {
 function select(id) {
   state.selectedId = id;
   stage.select(id);
-  renderMainRow();
-  renderList();
+  renderSources();
   renderProps();
 }
 
+/** Deselects what the layout no longer has: a removed layer, or the picture of a main screen back on its placeholder. */
+function dropStaleSelection() {
+  const id = state.selectedId;
+  const gone = id === L.MAIN_ID ? state.layout.main.type === 'placeholder' : !state.layout.layers.some((l) => l.id === id);
+  if (id && gone) state.selectedId = null;
+}
+
+/** A new layer goes on top of its own screen. */
 function addLayer(layer, { selectIt = true } = {}) {
-  const layers = state.layout.layers.concat([layer]);
+  const layers = L.sortLayers(state.layout.layers.concat([layer]));
   state.layout = Object.assign({}, state.layout, { layers, template: 'custom' });
   if (selectIt) state.selectedId = layer.id;
   renderAll();
@@ -160,20 +168,29 @@ function removeLayer(id) {
   pushLayout();
 }
 
+/** Bring forward / send back, within the layer's own screen. */
 function moveLayer(id, delta) {
   const layers = state.layout.layers.slice();
   const i = layers.findIndex((l) => l.id === id);
   const j = i + delta;
-  if (i < 0 || j < 0 || j >= layers.length) return;
+  if (i < 0 || j < 0 || j >= layers.length || layers[j].group !== layers[i].group) return;
   [layers[i], layers[j]] = [layers[j], layers[i]];
   state.layout = Object.assign({}, state.layout, { layers });
   renderAll();
   pushLayout();
 }
 
+/** Moves a layer to the other screen, keeping its size: it lands at the top of the main screen or the bottom of the split screen. */
+function switchGroup(id) {
+  const layers = state.layout.layers.map((l) => (l.id === id ? Object.assign({}, l, { group: l.group === 'main' ? 'split' : 'main' }) : l));
+  state.layout = Object.assign({}, state.layout, { layers: L.sortLayers(layers), template: 'custom' });
+  renderAll();
+  pushLayout();
+}
+
 function applyTemplate(id) {
   if (!L.templateTarget(state.layout.layers)) {
-    toast('Add a camera, USB device or screen share first — templates position it.', true);
+    toast('Add a camera, USB device or screen share to the split screen first — templates position it.', true);
     return;
   }
   state.layout = L.applyTemplate(state.layout, id);
@@ -187,22 +204,65 @@ function applyTemplate(id) {
 
 function renderAll() {
   stage.render(state.layout, state.selectedId);
-  renderMainRow();
-  renderList();
+  renderSources();
   renderProps();
   renderTemplates();
   renderFooter();
 }
 
-function renderMainRow() {
+const MAIN_BADGES = { placeholder: 'TEXT', video: 'VIDEO', image: 'IMAGE', cctv: 'CCTV' };
+
+function mainBadgeClass(main) {
+  return main.type === 'cctv' ? 'badge badge-live' : 'badge';
+}
+
+function mainKind(main) {
+  if (main.type === 'cctv') return 'Live CCTV';
+  if (main.type === 'video') return /^https?:/i.test(main.src) ? 'Video URL' : 'Video file';
+  return main.type === 'image' ? 'Image file' : 'Placeholder';
+}
+
+/**
+ * Sources: the Main Screen and Split Screen cards open Add source for their screen, and list that screen's layers
+ * under them, top first. The main screen's own picture (anything but the placeholder) comes last, under its layers.
+ */
+function renderSources() {
   const m = state.layout.main;
-  const file = m.src ? m.src.split('/').pop() : '';
-  const desc =
-    m.type === 'placeholder' ? `Placeholder "${m.label}"`
-    : m.type === 'cctv' ? `Live CCTV · ${m.label}`
-    : `${m.type === 'video' ? 'Video' : 'Image'} · ${file}`;
-  $('main-meta').textContent = `${desc}${L.hasCrop(m.crop) ? ' · cropped' : ''} · 1920 × 1080`;
-  $('btn-main').classList.toggle('selected', state.selectedId === L.MAIN_ID);
+  const layers = state.layout.layers.slice().reverse(); // top-most first
+  const mainRows = layers.filter((l) => l.group === 'main').map(layerRow);
+  if (m.type !== 'placeholder') mainRows.push(mainPictureRow(m));
+  renderGroup('main', mainRows);
+  renderGroup('split', layers.filter((l) => l.group !== 'main').map(layerRow));
+}
+
+function renderGroup(group, rows) {
+  const n = rows.length;
+  $(`btn-${group}`).classList.toggle('empty', !n);
+  $(`${group}-meta`).textContent = n ? `${n} source${n === 1 ? '' : 's'} · click to add` : 'Click to add a source';
+  const list = $(`${group}-layers`);
+  list.innerHTML = '';
+  list.append(...rows);
+}
+
+/** The main screen's own picture: select it for fit and crop, or press its pencil to change it. */
+function mainPictureRow(m) {
+  const li = document.createElement('li');
+  li.className = 'layer-row' + (state.selectedId === L.MAIN_ID ? ' selected' : '');
+  li.innerHTML = `
+    <button class="row-main" type="button">
+      <span class="${mainBadgeClass(m)}">${MAIN_BADGES[m.type]}</span>
+      <span class="main-text">
+        <span class="row-name"></span>
+        <span class="row-meta">${mainKind(m)}${L.hasCrop(m.crop) ? ' · cropped' : ''}</span>
+      </span>
+    </button>
+    <button class="edit-btn" type="button" aria-label="Change the main screen picture" title="Change source">
+      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16l.9-3.6 8.2-8.2a1.5 1.5 0 0 1 2.1 0l.6.6a1.5 1.5 0 0 1 0 2.1l-8.2 8.2z"></path><path d="M11.6 5.9l2.5 2.5"></path></svg>
+    </button>`;
+  li.querySelector('.row-name').textContent = m.label;
+  li.querySelector('.row-main').addEventListener('click', () => select(L.MAIN_ID));
+  li.querySelector('.edit-btn').addEventListener('click', () => openDialog('main', 'main'));
+  return li;
 }
 
 const LIVE_BADGES = { camera: 'LIVE', usb: 'USB', screen: 'SCREEN' };
@@ -219,30 +279,25 @@ function badgeText(layer) {
   return ['PNG', 'GIF', 'JPG', 'JPEG', 'WEBP'].includes(ext) ? ext : 'IMAGE';
 }
 
-function renderList() {
-  const list = $('layer-list');
-  list.innerHTML = '';
-  const layers = state.layout.layers.slice().reverse(); // top-most first
-  $('layer-empty').classList.toggle('hidden', layers.length > 0);
-  for (const layer of layers) {
-    const li = document.createElement('li');
-    li.className = 'layer-row' + (layer.id === state.selectedId ? ' selected' : '') + (layer.visible ? '' : ' hidden-layer');
-    li.innerHTML = `
-      <button class="row-main" type="button">
-        <span class="${badgeClass(layer)}">${badgeText(layer)}</span>
-        <span class="main-text">
-          <span class="row-name"></span>
-          <span class="row-meta">${layer.x}, ${layer.y} · ${layer.w} × ${layer.h}</span>
-        </span>
-      </button>
-      <button class="eye-btn ${layer.visible ? '' : 'off'}" type="button" aria-label="Toggle visibility">
-        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.5"></circle></svg>
-      </button>`;
-    li.querySelector('.row-name').textContent = layer.name;
-    li.querySelector('.row-main').addEventListener('click', () => select(layer.id));
-    li.querySelector('.eye-btn').addEventListener('click', () => updateLayer(layer.id, { visible: !layer.visible }));
-    list.appendChild(li);
-  }
+/** A layer under its screen's card: select it to edit it; the eye hides it from the program. */
+function layerRow(layer) {
+  const li = document.createElement('li');
+  li.className = 'layer-row' + (layer.id === state.selectedId ? ' selected' : '') + (layer.visible ? '' : ' hidden-layer');
+  li.innerHTML = `
+    <button class="row-main" type="button">
+      <span class="${badgeClass(layer)}">${badgeText(layer)}</span>
+      <span class="main-text">
+        <span class="row-name"></span>
+        <span class="row-meta">${layer.x}, ${layer.y} · ${layer.w} × ${layer.h}</span>
+      </span>
+    </button>
+    <button class="eye-btn ${layer.visible ? '' : 'off'}" type="button" aria-label="Toggle visibility">
+      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"></path><circle cx="10" cy="10" r="2.5"></circle></svg>
+    </button>`;
+  li.querySelector('.row-name').textContent = layer.name;
+  li.querySelector('.row-main').addEventListener('click', () => select(layer.id));
+  li.querySelector('.eye-btn').addEventListener('click', () => updateLayer(layer.id, { visible: !layer.visible }));
+  return li;
 }
 
 function renderProps() {
@@ -261,7 +316,7 @@ function renderProps() {
   const badge = $('props-badge');
   badge.className = badgeClass(layer);
   badge.textContent = badgeText(layer);
-  $('f-name').setAttribute('aria-label', 'Overlay name');
+  $('f-name').setAttribute('aria-label', 'Layer name');
   if (document.activeElement !== $('f-name')) $('f-name').value = layer.name;
   $('props-src').textContent =
     layer.type === 'camera' ? state.camera.label || 'Camera off — start it from Add source'
@@ -310,9 +365,12 @@ function renderProps() {
     grid.appendChild(b);
   }
 
-  const index = state.layout.layers.indexOf(layer);
-  $('btn-up').disabled = index >= state.layout.layers.length - 1;
+  // the order is within the layer's own screen
+  const stack = state.layout.layers.filter((l) => l.group === layer.group);
+  const index = stack.indexOf(layer);
+  $('btn-up').disabled = index >= stack.length - 1;
   $('btn-down').disabled = index <= 0;
+  $('btn-group').textContent = layer.group === 'main' ? 'Move to split screen' : 'Move to main screen';
 
   placeCropSection($('props'), $('sec-layer'));
   $('crop-section').classList.remove('hidden');
@@ -342,14 +400,12 @@ function renderSourceSection(layer) {
   $('src-stop').classList.toggle('hidden', !src);
 }
 
-const MAIN_BADGES = { placeholder: 'TEXT', video: 'VIDEO', image: 'IMAGE', cctv: 'CCTV' };
-
 function renderMainProps() {
   const m = state.layout.main;
   const badge = $('props-badge');
-  badge.className = m.type === 'cctv' ? 'badge badge-live' : 'badge';
+  badge.className = mainBadgeClass(m);
   badge.textContent = MAIN_BADGES[m.type];
-  $('f-name').setAttribute('aria-label', 'Main screen name');
+  $('f-name').setAttribute('aria-label', 'Main screen source name');
   if (document.activeElement !== $('f-name')) $('f-name').value = m.label;
   $('props-src').textContent =
     m.type === 'placeholder' ? 'Main screen · placeholder text'
@@ -431,7 +487,7 @@ function renderTemplates() {
 function renderFooter() {
   const n = state.layout.layers.length;
   const v = state.layout.layers.filter((l) => l.visible).length;
-  $('status-layers').textContent = `${n} overlay${n === 1 ? '' : 's'} · ${v} on program`;
+  $('status-layers').textContent = `${n} layer${n === 1 ? '' : 's'} · ${v} on program`;
   const sync = $('status-sync');
   sync.textContent = state.dirty ? 'Changes not yet on program' : state.autoTake ? 'Live · every change goes to program' : 'On program';
   sync.classList.toggle('dirty', state.dirty);
@@ -494,7 +550,7 @@ $('f-name').addEventListener('change', (e) => {
 
 // main screen
 $('mp-fit').addEventListener('change', (e) => updateMain({ fit: e.target.value }));
-$('mp-change').addEventListener('click', () => openDialog('main'));
+$('mp-change').addEventListener('click', () => openDialog('main', 'main'));
 
 // crop: the selected overlay, or the main screen; the preview follows the sliders
 function setCrop(crop, live) {
@@ -523,6 +579,7 @@ $('crop-reset').addEventListener('click', () => setCrop(L.sanitizeCrop(), false)
 $('btn-up').addEventListener('click', () => { const l = selectedLayer(); if (l) moveLayer(l.id, +1); });
 $('btn-down').addEventListener('click', () => { const l = selectedLayer(); if (l) moveLayer(l.id, -1); });
 $('btn-delete').addEventListener('click', () => { const l = selectedLayer(); if (l) removeLayer(l.id); });
+$('btn-group').addEventListener('click', () => { const l = selectedLayer(); if (l) switchGroup(l.id); });
 $('btn-duplicate').addEventListener('click', () => {
   const l = selectedLayer();
   if (!l) return;
@@ -571,18 +628,39 @@ $('btn-reset').addEventListener('click', () => {
 
 const dialog = $('add-dialog');
 
-function openDialog(tab) {
+/** A layer added to the main screen fills the whole program; it can be resized afterwards. */
+const FULL_SCREEN = { x: 0, y: 0, w: L.OUTPUT_W, h: L.OUTPUT_H, radius: 0, border: false };
+
+const DIALOG_HEADS = {
+  main: ['Add source to main screen', `Fills the whole ${L.OUTPUT_W} × ${L.OUTPUT_H} program, under the split screen. You can change it afterwards.`],
+  split: ['Add source to split screen', 'Appears as a window on top of the main screen. You can resize and move it afterwards.'],
+};
+
+/**
+ * Add source, for the main screen or the split screen. The Custom tab gives the main screen its own picture, and
+ * either screen a PNG / GIF: the split screen gets only that. The main screen's layers fill the program, so their
+ * size and position options are hidden.
+ */
+function openDialog(tab, group = 'split') {
+  state.addGroup = group;
+  const [title, sub] = DIALOG_HEADS[group];
+  $('add-title').textContent = title;
+  $('add-sub').textContent = sub;
+  $('main-types').classList.toggle('hidden', group !== 'main');
+  for (const el of dialog.querySelectorAll('.placement')) el.classList.toggle('hidden', group === 'main');
   switchTab(tab || 'camera');
   if (!dialog.open) dialog.showModal();
-  if (tab === 'image' || !tab) loadLibrary();
   if ((tab || 'camera') === 'camera') listCameras();
   syncMainForm();
+  if (group === 'split') {
+    dialog.querySelector('input[name="main-type"][value="png"]').checked = true;
+    showMainFields();
+  }
 }
 
 function switchTab(id) {
   for (const t of dialog.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.tab === id);
   for (const p of dialog.querySelectorAll('.tab-panel')) p.classList.toggle('active', p.dataset.panel === id);
-  if (id === 'image') loadLibrary();
   if (id === 'camera') listCameras();
   if (id === 'usb') openUsbTab();
 }
@@ -591,8 +669,9 @@ function activeTab() {
   return dialog.querySelector('.tab.active').dataset.tab;
 }
 
-$('btn-add').addEventListener('click', () => openDialog('camera'));
-$('btn-main').addEventListener('click', () => select(L.MAIN_ID));
+$('btn-add').addEventListener('click', () => openDialog('camera', 'split'));
+$('btn-main').addEventListener('click', () => openDialog('main', 'main'));
+$('btn-split').addEventListener('click', () => openDialog('camera', 'split'));
 for (const t of dialog.querySelectorAll('.tab')) t.addEventListener('click', () => switchTab(t.dataset.tab));
 for (const b of dialog.querySelectorAll('[data-close]')) b.addEventListener('click', () => dialog.close());
 dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
@@ -718,13 +797,17 @@ $('cam-start').addEventListener('click', async () => {
   const stream = await startCamera();
   if (!stream) return;
   const mirror = $('cam-mirror').checked;
-  const existing = state.layout.layers.find((l) => l.type === 'camera');
+  const group = state.addGroup;
+  // one camera layer per screen: adding it again only changes its mirroring
+  const existing = state.layout.layers.find((l) => l.type === 'camera' && l.group === group);
   if (existing) {
     updateLayer(existing.id, { mirror });
+  } else if (group === 'main') {
+    addLayer(L.newLayer('camera', Object.assign({ name: 'Local Camera', group, mirror }, FULL_SCREEN)));
   } else {
     const fraction = Number($('cam-size').value);
     const w = Math.round(L.OUTPUT_W * fraction);
-    const base = L.newLayer('camera', { name: 'Local Camera', w, h: Math.round((w * 9) / 16), mirror, radius: 8, border: true });
+    const base = L.newLayer('camera', { name: 'Local Camera', group, w, h: Math.round((w * 9) / 16), mirror, radius: 8, border: true });
     addLayer(L.snapToAnchor(base, $('cam-pos').value));
   }
   dialog.close();
@@ -733,7 +816,7 @@ $('cam-start').addEventListener('click', async () => {
 $('cam-stop').addEventListener('click', () => stopCamera());
 $('cam-mirror').addEventListener('change', (e) => {
   $('cam-preview').closest('.cam-preview').classList.toggle('mirror', e.target.checked);
-  const cam = state.layout.layers.find((l) => l.type === 'camera');
+  const cam = state.layout.layers.find((l) => l.type === 'camera' && l.group === state.addGroup);
   if (cam && state.camera.stream) updateLayer(cam.id, { mirror: e.target.checked });
 });
 $('cam-device').addEventListener('change', () => { if (state.camera.stream) startCamera(); });
@@ -771,13 +854,12 @@ function stopPending(kind) {
 }
 
 /**
- * A new overlay for a live source, sized to its picture: a share of the output width at the chosen anchor,
- * or the whole program.
+ * A new layer for a live source, on the screen the dialog adds to: on the main screen the whole program; in the
+ * split screen sized to its picture, a share of the output width at the chosen anchor, or the whole program.
  */
 function placeNew(type, props, size, anchor, settings) {
-  if (Number(size) >= 1) {
-    return L.newLayer(type, Object.assign({}, props, { x: 0, y: 0, w: L.OUTPUT_W, h: L.OUTPUT_H, radius: 0, border: false }));
-  }
+  props = Object.assign({ group: state.addGroup }, props);
+  if (state.addGroup === 'main' || Number(size) >= 1) return L.newLayer(type, Object.assign(props, FULL_SCREEN));
   const aspect = settings.width && settings.height ? settings.height / settings.width : 9 / 16;
   let w = Math.round(L.OUTPUT_W * Number(size));
   let h = Math.round(w * aspect);
@@ -1258,12 +1340,11 @@ $('img-add').addEventListener('click', async () => {
   btn.disabled = true;
   try {
     let url = p.url;
-    let name = p.name;
+    const name = p.name; // a new file keeps the browser's name: the server's can come back mis-decoded
     if (!url) {
       btn.textContent = 'Uploading…';
       const up = await uploadFile(p.file);
       url = up.url;
-      name = up.name;
     }
     const nat = await imageSize(url);
     const sizeVal = $('img-size').value;
@@ -1274,10 +1355,11 @@ $('img-add').addEventListener('click', async () => {
     const isGif = /\.gif$/i.test(url);
     const base = L.newLayer('image', {
       name: name.replace(/\.[^.]+$/, ''),
+      group: state.addGroup,
       src: url, w, h,
       fit: 'contain', border: false, radius: 0,
     });
-    addLayer(L.snapToAnchor(base, $('img-pos').value));
+    addLayer(state.addGroup === 'main' ? Object.assign(base, FULL_SCREEN) : L.snapToAnchor(base, $('img-pos').value));
     setPendingImage(null);
     imgFile.value = '';
     dialog.close();
@@ -1293,12 +1375,27 @@ $('img-add').addEventListener('click', async () => {
 
 // ---------- main screen ----------
 
+/** A file's name without its folder and extension: a new video or image on the main screen is named after it. */
+function fileTitle(path) {
+  return path.split('/').pop().replace(/\.[^.]+$/, '').trim();
+}
+
+/** The file name in a link, decoded: "https://…/My%20Show.mp4?t=1" → "My Show". */
+function linkTitle(url) {
+  try {
+    return fileTitle(decodeURIComponent(new URL(url).pathname));
+  } catch (_) {
+    return ''; // a malformed link is named after its kind
+  }
+}
+
 function syncMainForm() {
   const m = state.layout.main;
   const type = m.type === 'video' && /^https?:/i.test(m.src) ? 'url' : m.type;
   const radio = dialog.querySelector(`input[name="main-type"][value="${type}"]`);
   if (radio) radio.checked = true;
-  $('main-label').value = m.type === 'cctv' ? 'Main Screen' : m.label;
+  // the label is the placeholder's text, or else the source's name, which stays out of the text field
+  $('main-label').value = m.type === 'placeholder' ? m.label : 'Main Screen';
   $('main-url').value = type === 'url' ? m.src : '';
   $('main-fit').value = m.fit;
   $('main-loop').checked = m.loop;
@@ -1307,10 +1404,12 @@ function syncMainForm() {
   loadCctv(m.type === 'cctv' ? L.cctvIdOf(m.src) : undefined);
 }
 
+/** Shows the Custom tab's fields for the chosen kind; data-main lists the kinds an element is for. */
 function showMainFields() {
   const type = dialog.querySelector('input[name="main-type"]:checked').value;
-  for (const el of dialog.querySelectorAll('[data-main]')) el.classList.toggle('hidden', el.dataset.main !== type);
+  for (const el of dialog.querySelectorAll('[data-main]')) el.classList.toggle('hidden', !el.dataset.main.split(' ').includes(type));
   $('main-video-opts').classList.toggle('hidden', type !== 'video' && type !== 'url');
+  if (type === 'png') loadLibrary();
 }
 for (const r of dialog.querySelectorAll('input[name="main-type"]')) r.addEventListener('change', showMainFields);
 
@@ -1415,20 +1514,23 @@ $('main-apply').addEventListener('click', async () => {
   const btn = $('main-apply');
   btn.disabled = true;
   try {
-    const main = Object.assign({}, state.layout.main, {
+    const prev = state.layout.main;
+    const main = Object.assign({}, prev, {
       fit: $('main-fit').value,
       loop: $('main-loop').checked,
       muted: $('main-muted').checked,
-      label: $('main-label').value.trim() || 'Main Screen',
     });
+    let name = ''; // the name of a newly chosen file or link
     if (type === 'placeholder') {
       main.type = 'placeholder';
       main.src = '';
+      main.label = $('main-label').value.trim() || 'Main Screen';
     } else if (type === 'url') {
       const url = $('main-url').value.trim();
       if (!/^https?:\/\//i.test(url)) throw new Error('Enter a direct http(s) link to an .mp4 or .webm file.');
       main.type = 'video';
       main.src = url;
+      name = linkTitle(url);
     } else if (type === 'cctv') {
       btn.textContent = 'Saving camera…';
       const cam = await saveCctv();
@@ -1448,13 +1550,19 @@ $('main-apply').addEventListener('click', async () => {
         btn.textContent = 'Uploading…';
         const up = await uploadFile(file);
         main.src = up.url;
+        name = fileTitle(file.name); // the browser's name: the server's can come back mis-decoded
       }
       main.type = type;
     }
-    // a crop belongs to its source: a new source starts uncropped
-    const prev = state.layout.main;
-    if (main.type !== prev.type || main.src !== prev.src) main.crop = L.sanitizeCrop();
+    // a crop and a name belong to their source: a new file or link starts uncropped, under its own name
+    if (main.type !== prev.type || main.src !== prev.src) {
+      main.crop = L.sanitizeCrop();
+      if (main.type === 'video' || main.type === 'image') main.label = name || mainKind(main);
+    }
     state.layout = Object.assign({}, state.layout, { main });
+    // the source shows selected under Main Screen, ready for its fit and crop; the placeholder has no layer
+    if (main.type !== 'placeholder') state.selectedId = L.MAIN_ID;
+    dropStaleSelection();
     renderAll();
     pushLayout();
     dialog.close();
@@ -1492,7 +1600,7 @@ socket.on('layout', (next) => {
   // Initial layout from the server, or a change made by another admin window.
   if (state.dirty) return;
   state.layout = L.sanitizeLayout(next);
-  if (state.selectedId && !state.layout.layers.some((l) => l.id === state.selectedId)) state.selectedId = null;
+  dropStaleSelection();
   releaseUnused();
   renderAll();
   resumeDevices();

@@ -178,11 +178,12 @@ h1, h2, h3 { margin: 0; }
 
 /* ---------- sources list ---------- */
 
-.main-row {
+/* Main Screen and Split Screen: buttons that open Add source, each with its screen's layers listed under it */
+.group-card {
   margin: 0 12px;
   padding: 12px;
   border-radius: 10px;
-  border: 1px solid transparent;
+  border: 1px solid rgba(245, 165, 36, 0.45);
   background: var(--panel-2);
   color: var(--text);
   display: flex;
@@ -192,9 +193,17 @@ h1, h2, h3 { margin: 0; }
   cursor: pointer;
   width: calc(100% - 24px);
 }
-.main-row:hover { border-color: #3a4451; }
-.main-row.selected { border-color: var(--accent); }
-.main-icon {
+.group-card:hover { border-color: var(--accent); }
+/* no source yet: an empty slot that asks to be filled */
+.group-card.empty { background: transparent; border-style: dashed; }
+.group-card .row-meta { font-family: var(--sans); white-space: normal; }
+.card-add {
+  width: 32px; height: 32px; border-radius: 8px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(245, 165, 36, 0.14); color: var(--accent);
+}
+.group-card:hover .card-add { background: var(--accent); color: #121417; }
+.card-icon {
   width: 40px; height: 40px; border-radius: 8px; background: #3a3d42;
   display: flex; align-items: center; justify-content: center; flex: none;
 }
@@ -205,11 +214,14 @@ h1, h2, h3 { margin: 0; }
 .layer-list {
   list-style: none;
   margin: 0;
-  padding: 0 12px;
+  padding: 6px 12px 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
+.layer-list:empty { display: none; }
+/* the Split Screen card starts its group below the main screen's layers */
+.layer-list + .group-card { margin-top: 14px; }
 .layer-row {
   display: flex;
   align-items: center;
@@ -227,10 +239,9 @@ h1, h2, h3 { margin: 0; }
   text-align: left; cursor: pointer; color: var(--text);
 }
 .layer-row .row-main .main-text { gap: 2px; }
-.eye-btn { width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text); flex: none; }
-.eye-btn:hover { background: var(--panel-2); }
+.eye-btn, .edit-btn { width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text); flex: none; }
+.eye-btn:hover, .edit-btn:hover { background: var(--panel-2); }
 .eye-btn.off { color: #6b7580; }
-.layer-empty { margin: 4px 20px; font-size: 13px; line-height: 1.5; color: var(--muted); }
 
 .badge {
   min-width: 44px; height: 24px; padding: 0 8px;
@@ -398,7 +409,7 @@ select { appearance: auto; }
 .dialog-head h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
 .dialog-head p { margin: 4px 0 0; }
 
-.tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 6px; border-radius: 12px; background: var(--bg); }
+.tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; padding: 6px; border-radius: 12px; background: var(--bg); }
 .tab {
   height: 48px; border-radius: 8px;
   border: 1px solid transparent; background: transparent; color: var(--muted);
@@ -407,13 +418,15 @@ select { appearance: auto; }
 .tab.active { background: var(--panel-2); border-color: var(--accent); color: var(--text); }
 .tab-panel { display: none; flex-direction: column; gap: 20px; }
 .tab-panel.active { display: flex; }
+/* the Custom tab's two parts: the main screen's own picture, and PNG / GIF */
+.panel-part { display: flex; flex-direction: column; gap: 20px; }
 
 .grid-dialog { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; }
 .stack { display: flex; flex-direction: column; gap: 14px; }
 .stack.compact { gap: 0; }
 .dialog-options { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 12px; }
-.radio-row { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.radio-row { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .radio-row .check { min-height: 36px; }
 
 .cam-preview {

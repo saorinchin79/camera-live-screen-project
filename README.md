@@ -34,17 +34,17 @@ OBS as a **Browser Source** (1920 × 1080) to stream it.
 
 ## Features
 
-- **Main screen** — placeholder text, an uploaded MP4/WebM video, an image, a direct video URL, or a live CCTV camera; cover / contain / stretch. Select it in Sources to change its source, fit and crop.
+- **Main screen** — click **Main Screen** in Sources to add to it: a shared screen or browser tab, a USB device, the camera or a PNG/GIF that fills the program, and underneath them its own picture; PNG/GIF and the picture are in the **Custom** tab (placeholder text, an uploaded MP4/WebM video, an image, a direct video URL or a live CCTV camera; cover / contain / stretch). Each shows under the card as a layer: click it to edit it; the picture's pencil changes it.
 - **Live CCTV** — RTSP (Hikvision, Dahua, Imou, NVRs…), RTMP, HTTP MJPEG or HLS cameras on the main screen; test a camera before it goes on air, keep several cameras and switch between them. See [Live CCTV](#live-cctv).
 - **Crop** — cut a percentage off the top, bottom, left or right of any source (main screen or overlay) to remove a toolbar, a timestamp or black bars; the rest fills the window. Sliders in Properties, live in the preview.
-- **Split screen** — overlays stack on top of the main screen. Presets: Picture-in-picture, Half split, 1/2 horizontal, 1/3 horizontal, Presenter corner, Camera full screen.
+- **Split screen** — click **Split Screen** (or **Add source**) to add windows on top of the main screen; they show under the card as layers. Presets for the split screen's camera: Picture-in-picture, Half split, 1/2 horizontal, 1/3 horizontal, Presenter corner, Camera full screen.
 - **Local camera live** — pick the camera device, resolution and mirroring; the stream goes to every output over WebRTC (optional microphone audio).
 - **USB devices** — HDMI capture cards, webcams and any other video device plugged into the admin's computer, several at once, each as its own overlay; pick the format (size and 30 / 60 fps). A device on the layout starts again by itself when the admin page opens or the device is plugged back in.
 - **Screen share** — share a whole screen, one window or a browser tab of the admin's computer (the browser asks which) at 15, 30 or 60 fps; any number of shares, each its own overlay. *Share again…* / *Change window…* in Properties.
-- **PNG / GIF** — upload (transparency kept, GIFs animate) or reuse an uploaded file; drag and drop supported.
+- **PNG / GIF** — in the **Custom** tab of Add source, for either screen: upload (transparency kept, GIFs animate) or reuse an uploaded file; drag and drop supported.
 - **Size & position** — drag the window in the preview, pull the handles to resize, type X / Y / Width / Height in output pixels, lock aspect ratio, quick sizes (1/4 … full width), 3 × 3 snap grid with a 48 px safe margin, arrow-key nudging.
 - **Appearance** — opacity, corner radius, fit, white border, mirror (camera, USB device).
-- **Layer order** — bring forward / send back, hide without removing, duplicate, remove.
+- **Layer order** — bring forward / send back within its screen, hide without removing, duplicate, remove, move to the other screen (*Move to main screen* / *Move to split screen*).
 - **Auto take** — every change goes to the program; turn it off to prepare changes and press **Take to program**.
 - Layout is saved to `data/layout.json` and restored on restart; uploads live in `uploads/`.
 
@@ -57,8 +57,9 @@ to every output, so ten screens still cost the camera one connection. ffmpeg sta
 reconnects on its own when the camera drops (the output shows a RECONNECTING badge) and stops 15 s after
 the last viewer leaves.
 
-In the admin: select **Main Screen** → **Change main screen source…** → **Live CCTV camera**, enter the camera's
-stream URL, press **Test connection**, then **Apply to main screen**.
+In the admin: click **Main Screen** (Add source opens on its **Custom** tab) → **Live CCTV camera**, enter the camera's
+stream URL, press **Test connection**, then **Apply to main screen**. The camera then shows under Main Screen in
+Sources; its pencil changes it.
 
 | Camera | Stream URL |
 | --- | --- |
@@ -130,10 +131,13 @@ Socket.IO events: `hello {role}`, `layout`, `layout:set`, `camera:state`, `peers
   "main": { "type": "video", "src": "/uploads/program.mp4", "fit": "cover", "loop": true, "muted": true, "label": "Main Screen",
             "crop": { "top": 7.5, "right": 0, "bottom": 0, "left": 0 } },
   "layers": [
-    { "id": "cam-main", "type": "camera", "name": "Local Camera", "x": 48, "y": 48, "w": 640, "h": 360,
+    { "id": "screen-1", "type": "screen", "group": "main", "name": "Browser tab", "source": "screen-mvqfn7ednyuf",
+      "x": 0, "y": 0, "w": 1920, "h": 1080, "opacity": 1, "radius": 0, "visible": true, "fit": "contain", "mirror": false,
+      "border": false, "crop": { "top": 0, "right": 0, "bottom": 0, "left": 0 } },
+    { "id": "cam-main", "type": "camera", "group": "split", "name": "Local Camera", "x": 48, "y": 48, "w": 640, "h": 360,
       "opacity": 1, "radius": 8, "visible": true, "fit": "cover", "mirror": false, "border": true,
       "crop": { "top": 0, "right": 0, "bottom": 0, "left": 0 } },
-    { "id": "img-1", "type": "image", "name": "Logo", "src": "/uploads/logo.png", "x": 1712, "y": 48, "w": 160, "h": 160,
+    { "id": "img-1", "type": "image", "group": "split", "name": "Logo", "src": "/uploads/logo.png", "x": 1712, "y": 48, "w": 160, "h": 160,
       "opacity": 1, "radius": 0, "visible": true, "fit": "contain", "border": false,
       "crop": { "top": 0, "right": 0, "bottom": 0, "left": 0 } }
   ],
@@ -142,6 +146,9 @@ Socket.IO events: `hello {role}`, `layout`, `layout:set`, `camera:state`, `peers
 ```
 
 `layers` are drawn back to front; coordinates are output pixels on the 1920 × 1080 program.
+`group` is the screen a layer belongs to: `main` (part of the main screen, drawn under the split screen) or `split`
+(a split-screen window on top; the default, also for layouts saved before groups existed). The main screen's layers
+always come first.
 `crop` is the percentage cut off each edge of the source (0–45 per edge) before it is fitted.
 A CCTV main screen is `{ "type": "cctv", "src": "/api/cctv/<id>/stream.mjpg", "label": "<camera name>", … }`.
 A USB device overlay is `{ "type": "usb", "source": "usb-…", "device": { "id": "<browser device id>", "label": "<device name>",

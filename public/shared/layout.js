@@ -3,7 +3,9 @@
  *
  * A layout describes the 1920x1080 program:
  *   main   — what fills the whole screen (placeholder, uploaded video or image, live CCTV camera)
- *   layers — split-screen overlays drawn on top, back to front (local camera, USB device, shared screen, image)
+ *   layers — drawn on top, back to front (local camera, USB device, shared screen, image). Each belongs to a screen:
+ *            group "main" layers are part of the main screen (a shared browser tab filling the program, say),
+ *            group "split" layers are the split-screen windows above it. The main screen's come first in the list.
  * Every source can be cropped: `crop` cuts a percentage off each edge before the rest is fitted.
  */
 (function (root, factory) {
@@ -149,6 +151,7 @@
     const layer = {
       id: typeof l.id === 'string' && l.id ? l.id.slice(0, 64) : uid(type) + index,
       type,
+      group: l.group === 'main' ? 'main' : 'split',
       name: String(l.name || LAYER_NAMES[type]).slice(0, 80),
       src: type === 'image' && isSafeSrc(l.src) ? l.src : '',
       x: clamp(Math.round(num(l.x, 0)), -OUTPUT_W, OUTPUT_W),
@@ -174,7 +177,7 @@
     const mainType = MAIN_TYPES.includes(main.type) ? main.type : 'placeholder';
     // a CCTV main screen needs a CCTV stream, a video or image main screen a file or URL
     const mainSrcOk = isSafeSrc(main.src) && (mainType === 'cctv') === isCctvSrc(main.src);
-    const layers = Array.isArray(s.layers) ? s.layers.map(sanitizeLayer) : [];
+    const layers = sortLayers(Array.isArray(s.layers) ? s.layers.map(sanitizeLayer) : []);
     const seen = new Set();
     for (const l of layers) {
       while (seen.has(l.id)) l.id = uid(l.type);
@@ -236,9 +239,16 @@
     return constrain(Object.assign({}, layer, { w, h }));
   }
 
-  /** The overlay a template moves: the local camera, or without one the first USB device or screen share. */
+  /** The main screen's layers first, so they are drawn under the split screen's; each screen keeps its own order. */
+  function sortLayers(layers) {
+    const rank = (l) => (l.group === 'main' ? 0 : 1);
+    return layers.slice().sort((a, b) => rank(a) - rank(b));
+  }
+
+  /** The layer a template moves: the split screen's local camera, or without one its first USB device or screen share. */
   function templateTarget(layers) {
-    return layers.find((l) => l.type === 'camera') || layers.find((l) => LIVE_TYPES.includes(l.type)) || null;
+    const split = layers.filter((l) => l.group !== 'main');
+    return split.find((l) => l.type === 'camera') || split.find((l) => LIVE_TYPES.includes(l.type)) || null;
   }
 
   function applyTemplate(layout, templateId) {
@@ -283,6 +293,7 @@
     snapToAnchor,
     anchorOf,
     resizeToFraction,
+    sortLayers,
     templateTarget,
     applyTemplate,
     newLayer,
