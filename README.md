@@ -47,6 +47,7 @@ OBS as a **Browser Source** (1920 × 1080) to stream it.
 - **Appearance** — opacity, corner radius, fit, white border, mirror (camera, USB device).
 - **Layer order** — bring forward / send back within its screen, hide without removing, duplicate, remove, move to the other screen (*Move to main screen* / *Move to split screen*).
 - **Auto take** — every change goes to the program; turn it off to prepare changes and press **Take to program**.
+- **English / ខ្មែរ** — the switch in the admin's header shows the admin in Khmer; the browser remembers the choice. Layer and camera names stay as they were typed, and the program itself is never translated. The admin is written in English, and `public/admin/km.js` gives the Khmer for each English text (`{n}` stands for a number, `{name}` for a value): a text missing there shows in English.
 - Layout is saved to `data/layout.json` and restored on restart; uploads live in `uploads/`.
 
 ## Live CCTV
@@ -168,6 +169,8 @@ public/shared/layout.js   Layout model, templates, snapping, crop (shared by ser
 public/shared/stage.js    Stage renderer (main screen + overlays, crop, drag/resize in the admin)
 public/shared/stage.css   Stage styles
 public/admin/             Admin layout editor
+public/admin/i18n.js      English / Khmer switch: translates the admin as it is shown
+public/admin/km.js        The Khmer for each English text of the admin
 public/output/            Program output page
 INSTALL.md                Step-by-step installation on another computer, webcam and CCTV set-up
 Install-Windows.bat       Windows installer (double-click); runs setup/install-windows.ps1

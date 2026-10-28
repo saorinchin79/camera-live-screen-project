@@ -5,9 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Layout Editor · Stream Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Kantumruy+Pro:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/shared/stage.css">
   <link rel="stylesheet" href="./admin.css">
+  <script>
+    // Khmer chosen: the page waits for its translation (i18n.js), so no English flashes; 1.5 s at most
+    try {
+      if (localStorage.getItem('stream-studio:lang') === 'km') {
+        document.documentElement.classList.add('i18n-pending');
+        setTimeout(function () { document.documentElement.classList.remove('i18n-pending'); }, 1500);
+      }
+    } catch (e) { /* no storage: English */ }
+  </script>
 </head>
 <body>
 <div class="app">
@@ -26,6 +35,11 @@
       <span id="chip-outputs" class="chip" title="Program output pages connected">0 outputs</span>
       <span id="chip-camera" class="chip chip-off">Camera off</span>
       <span class="chip mono">1920 × 1080</span>
+      <!-- the admin's language (i18n.js); the labels name themselves, so they are never translated -->
+      <div class="lang-switch" role="group" aria-label="Language · ភាសា" translate="no">
+        <button type="button" data-lang="en" lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="km" lang="km" aria-pressed="false">ខ្មែរ</button>
+      </div>
       <span class="chip chip-admin"><span class="avatar">A</span>Admin</span>
     </div>
   </header>
@@ -76,7 +90,8 @@
         <span class="muted small">Click a layer to select it · drag to move · handles resize · arrow keys nudge (Shift = 10 px)</span>
       </div>
       <div id="monitor" class="monitor">
-        <div id="preview"></div>
+        <!-- the program as it goes on air, whatever the admin's language -->
+        <div id="preview" translate="no"></div>
       </div>
       <div class="templates">
         <span class="panel-label inline">Split layouts</span>

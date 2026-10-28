@@ -11,6 +11,7 @@
  *   each of them to the outputs over WebRTC: one connection per output and source
  */
 import { createStage } from '/shared/stage.js';
+import { t } from './i18n.js';
 
 const L = window.StreamLayout;
 const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
@@ -253,7 +254,7 @@ function mainPictureRow(m) {
     <button class="row-main" type="button">
       <span class="${mainBadgeClass(m)}">${MAIN_BADGES[m.type]}</span>
       <span class="main-text">
-        <span class="row-name"></span>
+        <span class="row-name" translate="no"></span>
         <span class="row-meta">${mainKind(m)}${L.hasCrop(m.crop) ? ' · cropped' : ''}</span>
       </span>
     </button>
@@ -288,7 +289,7 @@ function layerRow(layer) {
     <button class="row-main" type="button">
       <span class="${badgeClass(layer)}">${badgeText(layer)}</span>
       <span class="main-text">
-        <span class="row-name"></span>
+        <span class="row-name" translate="no"></span>
         <span class="row-meta">${layer.x}, ${layer.y} · ${layer.w} × ${layer.h}</span>
       </span>
     </button>
@@ -585,7 +586,7 @@ $('btn-group').addEventListener('click', () => { const l = selectedLayer(); if (
 $('btn-duplicate').addEventListener('click', () => {
   const l = selectedLayer();
   if (!l) return;
-  addLayer(L.newLayer(l.type, Object.assign({}, l, { id: undefined, name: l.name + ' copy', x: l.x + 40, y: l.y + 40 })));
+  addLayer(L.newLayer(l.type, Object.assign({}, l, { id: undefined, name: t('{name} copy', { name: l.name }), x: l.x + 40, y: l.y + 40 })));
 });
 
 // keyboard: nudge / delete / deselect
@@ -619,7 +620,7 @@ $('f-autotake').addEventListener('change', (e) => {
 });
 $('btn-take').addEventListener('click', () => pushLayout({ force: true }));
 $('btn-reset').addEventListener('click', () => {
-  if (!confirm('Reset the layout to the default (one camera overlay, placeholder main screen)?')) return;
+  if (!confirm(t('Reset the layout to the default (one camera overlay, placeholder main screen)?'))) return;
   state.selectedId = null;
   setLayout(L.DEFAULT_LAYOUT);
 });
@@ -805,11 +806,11 @@ $('cam-start').addEventListener('click', async () => {
   if (existing) {
     updateLayer(existing.id, { mirror });
   } else if (group === 'main') {
-    addLayer(L.newLayer('camera', Object.assign({ name: 'Local Camera', group, mirror }, FULL_SCREEN)));
+    addLayer(L.newLayer('camera', Object.assign({ name: t('Local Camera'), group, mirror }, FULL_SCREEN)));
   } else {
     const fraction = Number($('cam-size').value);
     const w = Math.round(L.OUTPUT_W * fraction);
-    const base = L.newLayer('camera', { name: 'Local Camera', group, w, h: Math.round((w * 9) / 16), mirror, radius: 8, border: true });
+    const base = L.newLayer('camera', { name: t('Local Camera'), group, w, h: Math.round((w * 9) / 16), mirror, radius: 8, border: true });
     addLayer(L.snapToAnchor(base, $('cam-pos').value));
   }
   dialog.close();
@@ -1017,7 +1018,7 @@ async function startUsbPreview() {
     });
     fillFormats(track, format);
     showPreview('usb', stream);
-    $('usb-name').placeholder = track.label || 'USB device';
+    $('usb-name').placeholder = track.label || t('USB device');
   } catch (e) {
     if (token !== usbToken) return;
     err.textContent = deviceError(e);
@@ -1056,7 +1057,7 @@ $('usb-add').addEventListener('click', () => {
     stream = p.stream;
   }
   const track = stream.getVideoTracks()[0];
-  const name = $('usb-name').value.trim() || track.label || 'USB device';
+  const name = $('usb-name').value.trim() || track.label || t('USB device');
   const device = Object.assign({ id: deviceId, label: track.label }, parseFormat($('usb-format').value));
   if (!state.live.has(sourceId)) setLive(sourceId, { kind: 'usb', stream, label: track.label || name });
   state.stopped.delete(sourceId);
@@ -1138,7 +1139,7 @@ async function pickScreen(fps) {
 }
 
 function screenName(stream) {
-  return SURFACE_NAMES[stream.getVideoTracks()[0].getSettings().displaySurface] || 'Screen share';
+  return t(SURFACE_NAMES[stream.getVideoTracks()[0].getSettings().displaySurface] || 'Screen share');
 }
 
 const cancelled = (e) => e.name === 'NotAllowedError' && !/system/i.test(e.message);
@@ -1432,6 +1433,7 @@ async function loadCctv(selectId) {
     const o = document.createElement('option');
     o.value = cam.id;
     o.textContent = cam.name;
+    o.translate = false; // the camera's name, as typed
     sel.appendChild(o);
   }
   const add = document.createElement('option');
@@ -1458,9 +1460,11 @@ function fillCctvForm() {
 }
 $('cctv-select').addEventListener('change', fillCctvForm);
 
-function setCctvResult(text, kind) {
+/** The camera test's result: a text, or an error and its hint as two texts, so the language switch takes each. */
+function setCctvResult(parts, kind) {
   const el = $('cctv-result');
-  el.textContent = text;
+  el.textContent = '';
+  [].concat(parts).filter(Boolean).forEach((part, i) => el.append(i ? ` ${part}` : part));
   el.className = 'small' + (kind ? ` ${kind}` : '');
 }
 
@@ -1496,7 +1500,7 @@ $('cctv-test').addEventListener('click', async () => {
   setCctvResult('Connecting to the camera, this can take a few seconds…');
   try {
     const r = await postJson('/api/cctv/test', 'POST', { id: cam ? cam.id : undefined, url: $('cctv-url').value });
-    if (!r.ok) return setCctvResult([r.error, r.hint].filter(Boolean).join(' '), 'error');
+    if (!r.ok) return setCctvResult([r.error, r.hint], 'error');
     $('cctv-shot').src = r.image;
     $('cctv-shot').classList.remove('hidden');
     $('cctv-shot-hint').classList.add('hidden');
@@ -1511,7 +1515,7 @@ $('cctv-test').addEventListener('click', async () => {
 
 $('cctv-delete').addEventListener('click', async () => {
   const cam = selectedCctv();
-  if (!cam || !confirm(`Delete the camera "${cam.name}"? If it is on the main screen, the main screen goes back to the placeholder.`)) return;
+  if (!cam || !confirm(t('Delete the camera "{name}"? If it is on the main screen, the main screen goes back to the placeholder.', { name: cam.name }))) return;
   const res = await fetch(`/api/cctv/${cam.id}`, { method: 'DELETE' });
   if (!res.ok) return setCctvResult('Could not delete the camera.', 'error');
   await loadCctv('');
@@ -1543,7 +1547,7 @@ $('main-apply').addEventListener('click', async () => {
         const yt = await checkYoutube(url);
         main.type = 'youtube';
         main.src = yt.src;
-        name = yt.title || 'YouTube video';
+        name = yt.title || t('YouTube video');
       } else {
         if (!/^https?:\/\//i.test(url)) throw new Error('Enter a YouTube link, or a direct http(s) link to an .mp4 or .webm file.');
         main.type = 'video';

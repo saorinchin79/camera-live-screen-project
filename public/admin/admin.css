@@ -10,8 +10,9 @@
   --purple: #b48cff;
   --live: #d7322e;
   --danger: #ff6b6b;
-  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --sans: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Kantumruy Pro draws the Khmer: the browser loads it only for pages that show Khmer */
+  --mono: 'IBM Plex Mono', 'Kantumruy Pro', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: 'Space Grotesk', 'Kantumruy Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -36,6 +37,8 @@ h1, h2, h3 { margin: 0; }
 .mono { font-family: var(--mono); }
 .between { display: flex; justify-content: space-between; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+/* until i18n.js has put the page in Khmer */
+.i18n-pending body { visibility: hidden; }
 
 .app {
   height: 100vh;
@@ -90,6 +93,16 @@ h1, h2, h3 { margin: 0; }
 .chip-live { background: #2a1517; color: #ff8a8c; letter-spacing: 0.04em; }
 .chip-live::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #ff4d4f; }
 .chip-admin { padding-left: 6px; }
+
+/* English / Khmer */
+.lang-switch { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--panel-2); }
+.lang-switch button {
+  min-width: 44px; height: 32px; padding: 0 12px;
+  border: 0; border-radius: 999px; background: transparent; color: var(--muted);
+  font-weight: 600; font-size: 13px; cursor: pointer;
+}
+.lang-switch button:hover { color: var(--text); }
+.lang-switch button[aria-pressed="true"] { background: var(--accent); color: #121417; }
 .avatar {
   width: 24px; height: 24px; border-radius: 50%;
   background: var(--accent); color: #121417;
@@ -264,7 +277,7 @@ h1, h2, h3 { margin: 0; }
   padding: 24px 22px;
 }
 .center-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 28px; }
-.center-title { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 15px; }
+.center-title { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 15px; white-space: nowrap; }
 .center-title .chip { padding: 3px 8px; border-radius: 6px; background: var(--panel); border: 1px solid var(--border); font-size: 12px; }
 
 .monitor {

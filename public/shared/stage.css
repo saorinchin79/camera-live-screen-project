@@ -8,7 +8,8 @@
   background: #3a3d42;
   color: #fff;
   transform-origin: 0 0;
-  font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  /* Kantumruy Pro: Khmer names and placeholder text on the program */
+  font-family: 'Space Grotesk', 'Kantumruy Pro', system-ui, -apple-system, sans-serif;
   user-select: none;
 }
 

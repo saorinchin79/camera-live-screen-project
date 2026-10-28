@@ -137,6 +137,7 @@ applications menu and on the desktop. On some desktops you must right-click the 
   ```
 
 - Your browser opens the **admin page** by itself. If it does not, type `http://localhost:3000/admin/` into the browser.
+- To see the admin in Khmer, click **ខ្មែរ** at the top right (**EN** switches back). The browser remembers it.
 - Write down the **LAN** address: TVs and other computers use it to show the program (section 8).
 
 **Stop:** close the black window.
