@@ -219,6 +219,10 @@ browsers never share a screen without asking.
 
 PNG and GIF pictures, such as a logo or an animated sticker, are in the **Custom** tab for both cards.
 
+To play a **YouTube** video on the main screen, click **Main Screen**, choose **Video URL** in **Custom**, paste the
+link from YouTube's **Share** button (a video, a live stream or a playlist) and click **Apply to main screen**. The
+video's title shows under Main Screen, and the screens play it by themselves.
+
 Each source shows under its card as a layer. Click a layer to change it in **Properties**: size and position, crop,
 order. **Move to main screen** / **Move to split screen** under **Layer** moves it to the other card. The split layouts
 (Picture-in-picture, Half split, …) arrange the split screen's camera.
@@ -415,6 +419,8 @@ Delete these:
 | A shared window is black on the program | Some programs block window capture: share the whole **screen** instead, or turn off the program's hardware acceleration |
 | A TV or other computer cannot open the output | Use the **LAN** address, not `localhost`. Allow Node.js in the firewall and set the Windows network to **Private** |
 | The CCTV picture is slow or jerky | Use the camera's **sub stream** and a lower frame rate (5 or 10 fps) |
+| *"The owner of this video does not let other sites play it"* | That YouTube video only plays on youtube.com: choose another one |
+| A YouTube video has no sound on the TV | Untick **Mute video** in Custom → Video URL, then click once on the output page (or press **F**): browsers only play sound on a page someone has clicked. In OBS it plays with sound straight away |
 | A CCTV camera stops working after its password was changed | Main Screen → Live CCTV camera → pick the camera, type the new password into the Stream URL, Test connection, Apply |
 
 ---

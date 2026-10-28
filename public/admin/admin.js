@@ -1,7 +1,7 @@
 /**
  * Admin — split-screen layout editor.
  *
- * - Edits the layout: the main screen (its own placeholder/video/image/live CCTV picture, and layers that fill it)
+ * - Edits the layout: the main screen (its own placeholder/video/image/YouTube/live CCTV picture, and layers that fill it)
  *   and the split screen's windows on top; a layer is the local camera, a USB device, a shared screen or window,
  *   or a PNG/GIF image. The Main Screen and Split Screen cards open Add source for their screen
  * - Crops any source (main screen or overlay) to cut toolbars and black bars off its edges
@@ -210,14 +210,15 @@ function renderAll() {
   renderFooter();
 }
 
-const MAIN_BADGES = { placeholder: 'TEXT', video: 'VIDEO', image: 'IMAGE', cctv: 'CCTV' };
+const MAIN_BADGES = { placeholder: 'TEXT', video: 'VIDEO', image: 'IMAGE', youtube: 'YOUTUBE', cctv: 'CCTV' };
 
 function mainBadgeClass(main) {
-  return main.type === 'cctv' ? 'badge badge-live' : 'badge';
+  return main.type === 'cctv' || main.type === 'youtube' ? 'badge badge-live' : 'badge';
 }
 
 function mainKind(main) {
   if (main.type === 'cctv') return 'Live CCTV';
+  if (main.type === 'youtube') return 'YouTube';
   if (main.type === 'video') return /^https?:/i.test(main.src) ? 'Video URL' : 'Video file';
   return main.type === 'image' ? 'Image file' : 'Placeholder';
 }
@@ -410,6 +411,7 @@ function renderMainProps() {
   $('props-src').textContent =
     m.type === 'placeholder' ? 'Main screen · placeholder text'
     : m.type === 'cctv' ? 'Main screen · live CCTV camera'
+    : m.type === 'youtube' ? 'Main screen · YouTube'
     : `Main screen · ${m.src.split('/').pop()}`;
   $('mp-fit').value = m.fit;
 
@@ -1391,7 +1393,8 @@ function linkTitle(url) {
 
 function syncMainForm() {
   const m = state.layout.main;
-  const type = m.type === 'video' && /^https?:/i.test(m.src) ? 'url' : m.type;
+  // a video link and a YouTube link both go in Video URL
+  const type = m.type === 'youtube' || (m.type === 'video' && /^https?:/i.test(m.src)) ? 'url' : m.type;
   const radio = dialog.querySelector(`input[name="main-type"][value="${type}"]`);
   if (radio) radio.checked = true;
   // the label is the placeholder's text, or else the source's name, which stays out of the text field
@@ -1461,6 +1464,14 @@ function setCctvResult(text, kind) {
   el.className = 'small' + (kind ? ` ${kind}` : '');
 }
 
+/** Asks the server about a YouTube link: its clean link and title, or why it cannot play on the program. */
+async function checkYoutube(url) {
+  const res = await fetch(`/api/youtube?url=${encodeURIComponent(url)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!data.ok) throw new Error(data.error || `Could not check the YouTube link (${res.status}).`);
+  return data;
+}
+
 async function postJson(url, method, body) {
   const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
@@ -1527,10 +1538,18 @@ $('main-apply').addEventListener('click', async () => {
       main.label = $('main-label').value.trim() || 'Main Screen';
     } else if (type === 'url') {
       const url = $('main-url').value.trim();
-      if (!/^https?:\/\//i.test(url)) throw new Error('Enter a direct http(s) link to an .mp4 or .webm file.');
-      main.type = 'video';
-      main.src = url;
-      name = linkTitle(url);
+      if (L.youtubeInfo(url)) {
+        btn.textContent = 'Checking the video…';
+        const yt = await checkYoutube(url);
+        main.type = 'youtube';
+        main.src = yt.src;
+        name = yt.title || 'YouTube video';
+      } else {
+        if (!/^https?:\/\//i.test(url)) throw new Error('Enter a YouTube link, or a direct http(s) link to an .mp4 or .webm file.');
+        main.type = 'video';
+        main.src = url;
+        name = linkTitle(url);
+      }
     } else if (type === 'cctv') {
       btn.textContent = 'Saving camera…';
       const cam = await saveCctv();
@@ -1557,7 +1576,7 @@ $('main-apply').addEventListener('click', async () => {
     // a crop and a name belong to their source: a new file or link starts uncropped, under its own name
     if (main.type !== prev.type || main.src !== prev.src) {
       main.crop = L.sanitizeCrop();
-      if (main.type === 'video' || main.type === 'image') main.label = name || mainKind(main);
+      if (['video', 'image', 'youtube'].includes(main.type)) main.label = name || mainKind(main);
     }
     state.layout = Object.assign({}, state.layout, { main });
     // the source shows selected under Main Screen, ready for its fit and crop; the placeholder has no layer

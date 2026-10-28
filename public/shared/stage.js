@@ -10,11 +10,14 @@
  *   stage.setSourceStream(sourceId, mediaStream);   // a USB device or screen share
  *   stage.setLiveSources(sources);  // the server's "sources" events: what the admin publishes
  *   stage.setCctvStatus(status);   // the server's "cctv:status" events
+ *   stage.replayMain();   // after the first click or key on the page: a main screen video with sound can start
  */
 const L = window.StreamLayout;
 
 const HANDLE_DIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 const LIVE_BADGES = { camera: 'LIVE', usb: 'USB', screen: 'SCREEN' };
+/** The attribute that names a main screen's media for screen readers. */
+const LABEL_ATTRS = { VIDEO: 'aria-label', IFRAME: 'title' };
 
 export function createStage(container, options = {}) {
   const opts = Object.assign(
@@ -104,10 +107,10 @@ export function createStage(container, options = {}) {
     for (const [lid, entry] of state.els) entry.el.classList.toggle('selected', lid === id);
   }
 
-  /** Size of a source (main screen: L.MAIN_ID) once its first frame is known, else null. */
+  /** Size of a source (main screen: L.MAIN_ID) once its first frame is known, else null (also for YouTube's player). */
   function sourceSize(id) {
     const view = id === L.MAIN_ID ? state.mainView : (state.els.get(id) || {}).view;
-    return view && view.w ? { w: view.w, h: view.h } : null;
+    return view && view.w && !view.nominal ? { w: view.w, h: view.h } : null;
   }
 
   // ---------- main screen ----------
@@ -121,7 +124,7 @@ export function createStage(container, options = {}) {
     // the name changes in place: renaming must not restart a video or reconnect a camera
     const title = mainEl.querySelector('.stage-main-title');
     if (title) title.textContent = main.label || 'Main Screen';
-    if (state.mainView) state.mainView.media.setAttribute(state.mainView.media.tagName === 'VIDEO' ? 'aria-label' : 'alt', main.label);
+    if (state.mainView) state.mainView.media.setAttribute(LABEL_ATTRS[state.mainView.media.tagName] || 'alt', main.label);
     mainEl.classList.toggle('selected', state.selectedId === L.MAIN_ID);
     if (state.mainView) fitMedia(state.mainView, L.OUTPUT_W, L.OUTPUT_H, main.fit, main.crop);
     renderCctvState();
@@ -144,6 +147,20 @@ export function createStage(container, options = {}) {
       state.mainView = mountMedia(mainEl, v, L.MAIN_ID);
       mainEl.classList.add('has-media');
       v.play().catch(() => {});
+      return;
+    }
+    if (main.type === 'youtube' && main.src) {
+      // YouTube's own player plays on every screen by itself; nothing in it can be clicked on the program
+      const player = document.createElement('iframe');
+      player.src = L.youtubeEmbedUrl(main.src, main);
+      player.title = main.label;
+      player.allow = 'autoplay; encrypted-media';
+      player.referrerPolicy = 'strict-origin-when-cross-origin';
+      player.tabIndex = -1;
+      state.mainView = mountMedia(mainEl, player, L.MAIN_ID);
+      // the player has no size of its own: a 16:9 window that letterboxes the video, which crop and fit work on
+      Object.assign(state.mainView, { w: L.OUTPUT_W, h: L.OUTPUT_H, nominal: true });
+      mainEl.classList.add('has-media');
       return;
     }
     if (main.type === 'image' && main.src) {
@@ -193,6 +210,22 @@ export function createStage(container, options = {}) {
       cctvRetry = null;
       reloadStreams();
     }, 3000);
+  }
+
+  /**
+   * Starts a main screen video or YouTube player that plays its sound, after a first click or key on the page: a
+   * browser plays sound only on a page someone has used, so it could not start by itself before. A video file
+   * goes on where it is; YouTube's player is loaded again.
+   */
+  function replayMain() {
+    const main = state.layout && state.layout.main;
+    if (!main || main.muted || !state.mainView) return;
+    if (main.type === 'video') {
+      state.mainView.media.play().catch(() => {});
+    } else if (main.type === 'youtube') {
+      state.mainKey = '';
+      renderMain(main);
+    }
   }
 
   /** Reconnects the main screen's CCTV stream, e.g. after the server restarted. */
@@ -263,8 +296,8 @@ export function createStage(container, options = {}) {
     if (!view) return;
     clearInterval(view.timer);
     const m = view.media;
-    if (m.tagName === 'IMG') {
-      m.removeAttribute('src'); // also ends an MJPEG stream's connection
+    if (m.tagName === 'IMG' || m.tagName === 'IFRAME') {
+      m.removeAttribute('src'); // also ends an MJPEG stream's connection; a YouTube player goes with its element
     } else if (!m.srcObject) {
       m.pause();
       m.removeAttribute('src');
@@ -583,6 +616,7 @@ export function createStage(container, options = {}) {
     setLiveSources,
     setCctvStatus,
     reloadStreams,
+    replayMain,
     sourceSize,
     get scale() { return state.scale; },
   };

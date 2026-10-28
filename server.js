@@ -6,6 +6,7 @@
  * - Accepts PNG / GIF / JPG / WebP / MP4 / WebM uploads (POST /api/upload)
  * - Relays WebRTC signaling so the admin's local camera is streamed live to every output display
  * - Plays live CCTV cameras (RTSP, RTMP, HTTP MJPEG, HLS) on the main screen through ffmpeg (cctv.js)
+ * - Checks YouTube links for the main screen: their title, and whether their owner lets other sites play them
  */
 'use strict';
 
@@ -19,7 +20,7 @@ const express = require('express');
 const multer = require('multer');
 const { Server } = require('socket.io');
 
-const { DEFAULT_LAYOUT, sanitizeLayout, cctvIdOf } = require('./public/shared/layout');
+const { DEFAULT_LAYOUT, sanitizeLayout, cctvIdOf, youtubeInfo, youtubeSrc } = require('./public/shared/layout');
 const { createCctv } = require('./cctv');
 
 const ROOT = __dirname;
@@ -183,6 +184,26 @@ app.delete('/api/cctv/:id', (req, res) => {
 });
 
 app.get('/api/cctv/:id/stream.mjpg', (req, res) => cctv.stream(req.params.id, req, res));
+
+// A YouTube link before it goes on air: YouTube's oEmbed gives its title, and refuses a video whose owner does not
+// let other sites play it (401 / 403), or one that is private, removed or mistyped.
+app.get('/api/youtube', async (req, res) => {
+  const info = youtubeInfo(req.query.url);
+  if (!info) return res.status(400).json({ ok: false, error: 'This is not a link to a YouTube video or playlist.' });
+  const src = youtubeSrc(info);
+  try {
+    const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(src)}`, { signal: AbortSignal.timeout(6000) });
+    if (r.status === 401 || r.status === 403) {
+      return res.json({ ok: false, error: 'The owner of this video does not let other sites play it. Choose another video.' });
+    }
+    if (!r.ok) return res.json({ ok: false, error: 'YouTube cannot find this video: it may be private, removed or mistyped.' });
+    const data = await r.json();
+    res.json({ ok: true, src, title: String(data.title || '').slice(0, 80), author: String(data.author_name || '').slice(0, 80) });
+  } catch (_) {
+    // no answer from YouTube (no internet here, or a slow one): the screens try to play it all the same
+    res.json({ ok: true, src, title: '', unchecked: true });
+  }
+});
 
 function respond(res, fn) {
   try {

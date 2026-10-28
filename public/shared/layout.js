@@ -2,7 +2,7 @@
  * Layout model shared by the server (CommonJS) and the browser (window.StreamLayout).
  *
  * A layout describes the 1920x1080 program:
- *   main   — what fills the whole screen (placeholder, uploaded video or image, live CCTV camera)
+ *   main   — what fills the whole screen (placeholder, uploaded video or image, YouTube video, live CCTV camera)
  *   layers — drawn on top, back to front (local camera, USB device, shared screen, image). Each belongs to a screen:
  *            group "main" layers are part of the main screen (a shared browser tab filling the program, say),
  *            group "split" layers are the split-screen windows above it. The main screen's come first in the list.
@@ -25,7 +25,7 @@
   /** A USB device or screen share is published by the admin under a source id; its overlays show that stream. */
   const SOURCE_ID = /^[a-z0-9-]{1,40}$/;
   const FITS = ['cover', 'contain', 'fill'];
-  const MAIN_TYPES = ['placeholder', 'video', 'image', 'cctv'];
+  const MAIN_TYPES = ['placeholder', 'video', 'image', 'youtube', 'cctv'];
 
   /** Selection id the admin uses for the main screen (overlay ids never look like this). */
   const MAIN_ID = '__main__';
@@ -36,6 +36,10 @@
 
   /** A live CCTV camera is played from this server; the camera URL (and password) stays there. */
   const CCTV_SRC = /^\/api\/cctv\/([a-z0-9-]{1,40})\/stream\.mjpg$/;
+
+  /** A YouTube video plays in YouTube's own player; these are its video and playlist ids. */
+  const YT_ID = /^[A-Za-z0-9_-]{11}$/;
+  const YT_LIST = /^[A-Za-z0-9_-]{2,64}$/;
 
   const DEFAULT_LAYOUT = {
     version: 1,
@@ -120,6 +124,64 @@
     return m ? m[1] : '';
   }
 
+  /**
+   * A YouTube link: watch?v=, youtu.be/, /shorts/, /live/ or /embed/ on youtube.com (www., m., music.) or
+   * youtube-nocookie.com, or a playlist; with its start time (t= or start=: 90, 90s, 1m30s). Null for anything else.
+   */
+  function youtubeInfo(url) {
+    let u;
+    try {
+      u = new URL(String(url || '').trim());
+    } catch (_) {
+      return null;
+    }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    const host = u.hostname.replace(/^(www|m|music)\./, '');
+    const path = u.pathname.split('/').filter(Boolean);
+    let id = '';
+    if (host === 'youtu.be') id = path[0] || '';
+    else if (host !== 'youtube.com' && host !== 'youtube-nocookie.com') return null;
+    else if (path[0] === 'watch') id = u.searchParams.get('v') || '';
+    else if (['shorts', 'live', 'embed', 'v'].includes(path[0])) id = path[1] || '';
+    else if (path[0] !== 'playlist') return null;
+    const list = u.searchParams.get('list') || '';
+    const info = { id: YT_ID.test(id) ? id : '', list: YT_LIST.test(list) ? list : '', start: youtubeStart(u.searchParams.get('t') || u.searchParams.get('start')) };
+    return info.id || info.list ? info : null;
+  }
+
+  /** Seconds from a YouTube start time: "90", "90s", "1m30s", "1h2m3s". */
+  function youtubeStart(t) {
+    const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(t || '');
+    return m ? Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0) : 0;
+  }
+
+  /** The link a YouTube main screen keeps: the video, with its playlist and start time, or the playlist. */
+  function youtubeSrc(info) {
+    if (!info.id) return `https://www.youtube.com/playlist?list=${info.list}`;
+    let src = `https://www.youtube.com/watch?v=${info.id}`;
+    if (info.list) src += `&list=${info.list}`;
+    if (info.start) src += `&t=${info.start}s`;
+    return src;
+  }
+
+  /**
+   * YouTube's player for a main screen: it starts by itself, without controls, muted unless the main screen plays
+   * its sound; a single video loops by being its own playlist. Built from the checked ids only, never the raw link.
+   */
+  function youtubeEmbedUrl(src, opts) {
+    const info = youtubeInfo(src);
+    if (!info) return '';
+    const o = opts || {};
+    const q = ['autoplay=1', `mute=${o.muted === false ? 0 : 1}`, 'controls=0', 'playsinline=1', 'rel=0', 'iv_load_policy=3', 'disablekb=1', 'fs=0'];
+    if (info.list) q.push(`list=${info.list}`);
+    if (o.loop !== false) {
+      q.push('loop=1');
+      if (!info.list) q.push(`playlist=${info.id}`);
+    }
+    if (info.start) q.push(`start=${info.start}`);
+    return `https://www.youtube.com/embed/${info.id || 'videoseries'}?${q.join('&')}`;
+  }
+
   function sanitizeCrop(raw) {
     const c = raw && typeof raw === 'object' ? raw : {};
     const crop = {};
@@ -174,9 +236,12 @@
   function sanitizeLayout(raw) {
     const s = raw && typeof raw === 'object' ? raw : {};
     const main = s.main && typeof s.main === 'object' ? s.main : {};
-    const mainType = MAIN_TYPES.includes(main.type) ? main.type : 'placeholder';
-    // a CCTV main screen needs a CCTV stream, a video or image main screen a file or URL
-    const mainSrcOk = isSafeSrc(main.src) && (mainType === 'cctv') === isCctvSrc(main.src);
+    const yt = youtubeInfo(main.src);
+    // a YouTube link never plays in a video element: a video main screen with one is a YouTube main screen
+    const wanted = main.type === 'video' && yt ? 'youtube' : main.type;
+    const mainType = MAIN_TYPES.includes(wanted) ? wanted : 'placeholder';
+    // a CCTV main screen needs a CCTV stream, a YouTube one a YouTube link, a video or image main screen a file or URL
+    const mainSrcOk = mainType === 'youtube' ? !!yt : isSafeSrc(main.src) && (mainType === 'cctv') === isCctvSrc(main.src);
     const layers = sortLayers(Array.isArray(s.layers) ? s.layers.map(sanitizeLayer) : []);
     const seen = new Set();
     for (const l of layers) {
@@ -188,7 +253,7 @@
       output: { width: OUTPUT_W, height: OUTPUT_H },
       main: {
         type: mainType === 'placeholder' || mainSrcOk ? mainType : 'placeholder',
-        src: isSafeSrc(main.src) ? main.src : '',
+        src: mainType === 'youtube' && yt ? youtubeSrc(yt) : isSafeSrc(main.src) ? main.src : '',
         fit: FITS.includes(main.fit) ? main.fit : 'cover',
         loop: main.loop !== false,
         muted: main.muted !== false,
@@ -284,6 +349,9 @@
     isCctvSrc,
     cctvSrc,
     cctvIdOf,
+    youtubeInfo,
+    youtubeSrc,
+    youtubeEmbedUrl,
     sanitizeCrop,
     hasCrop,
     sanitizeDevice,
