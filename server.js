@@ -174,9 +174,13 @@ app.put('/api/cctv/:id', (req, res) => respond(res, () => cctv.save(req.params.i
 
 app.delete('/api/cctv/:id', (req, res) => {
   if (!cctv.remove(req.params.id)) return res.status(404).json({ error: 'Camera not found.' });
-  // the main screen cannot keep showing a deleted camera
-  if (layout.main.type === 'cctv' && cctvIdOf(layout.main.src) === req.params.id) {
-    layout = sanitizeLayout(Object.assign({}, layout, { main: Object.assign({}, layout.main, { type: 'placeholder', src: '', label: 'Main Screen' }) }));
+  // nothing keeps showing a deleted camera: the main screen goes back to its placeholder, its windows go
+  const shows = (src) => cctvIdOf(src) === req.params.id;
+  const mainShows = layout.main.type === 'cctv' && shows(layout.main.src);
+  const layers = layout.layers.filter((l) => !(l.type === 'cctv' && shows(l.src)));
+  if (mainShows || layers.length !== layout.layers.length) {
+    const main = mainShows ? Object.assign({}, layout.main, { type: 'placeholder', src: '', label: 'Main Screen' }) : layout.main;
+    layout = sanitizeLayout(Object.assign({}, layout, { main, layers }));
     saveLayout(layout);
     io.emit('layout', layout);
   }

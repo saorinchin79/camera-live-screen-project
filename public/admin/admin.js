@@ -191,7 +191,7 @@ function switchGroup(id) {
 
 function applyTemplate(id) {
   if (!L.templateTarget(state.layout.layers)) {
-    toast('Add a camera, USB device or screen share to the split screen first — templates position it.', true);
+    toast('Add a camera, a screen share or a video to the split screen first — templates position it.', true);
     return;
   }
   state.layout = L.applyTemplate(state.layout, id);
@@ -267,16 +267,16 @@ function mainPictureRow(m) {
   return li;
 }
 
-const LIVE_BADGES = { camera: 'LIVE', usb: 'USB', screen: 'SCREEN' };
+const LAYER_BADGES = { camera: 'LIVE', usb: 'USB', screen: 'SCREEN', video: 'VIDEO', youtube: 'YOUTUBE', cctv: 'CCTV', text: 'TEXT' };
 
 function badgeClass(layer) {
-  if (L.LIVE_TYPES.includes(layer.type)) return 'badge badge-live';
+  if (L.LIVE_TYPES.includes(layer.type) || layer.type === 'cctv' || layer.type === 'youtube') return 'badge badge-live';
   if ((layer.src || '').toLowerCase().endsWith('.gif')) return 'badge badge-gif';
   return 'badge';
 }
 
 function badgeText(layer) {
-  if (LIVE_BADGES[layer.type]) return LIVE_BADGES[layer.type];
+  if (LAYER_BADGES[layer.type]) return LAYER_BADGES[layer.type];
   const ext = (layer.src || '').split('?')[0].split('.').pop().toUpperCase();
   return ['PNG', 'GIF', 'JPG', 'JPEG', 'WEBP'].includes(ext) ? ext : 'IMAGE';
 }
@@ -324,6 +324,9 @@ function renderProps() {
     layer.type === 'camera' ? state.camera.label || 'Camera off — start it from Add source'
     : layer.type === 'usb' ? layer.device.label || 'USB device'
     : layer.type === 'screen' ? 'Screen, window or browser tab'
+    : layer.type === 'youtube' ? 'YouTube'
+    : layer.type === 'cctv' ? 'Live CCTV camera'
+    : layer.type === 'text' ? 'Text'
     : layer.src ? layer.src.split('/').pop() : 'No file — pick one from Add source';
   renderSourceSection(layer);
 
@@ -336,6 +339,7 @@ function renderProps() {
   $('f-opacity-val').textContent = `${Math.round(layer.opacity * 100)} %`;
   setIfIdle('f-radius', layer.radius);
   $('f-fit').value = layer.fit;
+  $('f-fit').closest('label').classList.toggle('hidden', layer.type === 'text'); // a text has nothing to fit
   $('f-border').checked = layer.border;
   $('f-mirror').checked = layer.mirror;
   $('f-mirror-label').classList.toggle('hidden', layer.type !== 'camera' && layer.type !== 'usb');
@@ -374,16 +378,35 @@ function renderProps() {
   $('btn-down').disabled = index <= 0;
   $('btn-group').textContent = layer.group === 'main' ? 'Move to split screen' : 'Move to main screen';
 
+  // a text has nothing to crop
   placeCropSection($('props'), $('sec-layer'));
-  $('crop-section').classList.remove('hidden');
+  $('crop-section').classList.toggle('hidden', layer.type === 'text');
   renderCrop(layer.crop, stage.sourceSize(layer.id));
 }
 
-/** Status and start / stop buttons of a USB device or screen share overlay. */
+/**
+ * The Source section: a USB device's or screen share's status and its start / stop buttons, a CCTV window's camera
+ * status, a video or YouTube window's loop and sound.
+ */
 function renderSourceSection(layer) {
-  const shown = layer.type === 'usb' || layer.type === 'screen';
-  $('sec-source').classList.toggle('hidden', !shown);
-  if (!shown) return;
+  const device = layer.type === 'usb' || layer.type === 'screen';
+  const player = layer.type === 'video' || layer.type === 'youtube';
+  const cctv = layer.type === 'cctv';
+  $('sec-source').classList.toggle('hidden', !device && !player && !cctv);
+  $('src-buttons').classList.toggle('hidden', !device);
+  $('src-player').classList.toggle('hidden', !player);
+  $('src-hint').classList.add('hidden');
+  if (player) {
+    $('src-status').classList.add('hidden');
+    $('f-loop').checked = layer.loop;
+    $('f-muted').checked = layer.muted;
+    return;
+  }
+  if (cctv) {
+    showCctvStatus($('src-status'), $('src-status-text'), $('src-hint'), state.cctv.status.get(L.cctvIdOf(layer.src)));
+    return;
+  }
+  if (!device) return;
   const usb = layer.type === 'usb';
   const src = state.live.get(layer.source);
   const elsewhere = !src && !!state.liveElsewhere[layer.source];
@@ -419,7 +442,7 @@ function renderMainProps() {
   const isCctv = m.type === 'cctv';
   $('mp-cctv').classList.toggle('hidden', !isCctv);
   $('mp-cctv-hint').classList.add('hidden');
-  if (isCctv) renderCctvStatus(state.cctv.status.get(L.cctvIdOf(m.src)));
+  if (isCctv) showCctvStatus($('mp-cctv'), $('mp-cctv-text'), $('mp-cctv-hint'), state.cctv.status.get(L.cctvIdOf(m.src)));
 
   // a placeholder has nothing to crop
   placeCropSection($('main-props'));
@@ -427,15 +450,15 @@ function renderMainProps() {
   renderCrop(m.crop, stage.sourceSize(L.MAIN_ID));
 }
 
-function renderCctvStatus(s) {
+/** A CCTV camera's status from the server, for the main screen or a window: its dot, its text and, when it fails, a hint. */
+function showCctvStatus(box, text, hint, s) {
   const phase = s ? s.state : 'idle';
-  $('mp-cctv').className = `cctv-status ${phase}`;
-  $('mp-cctv-text').textContent =
+  box.className = `cctv-status ${phase}`;
+  text.textContent =
     phase === 'live' ? `Live · ${s.width} × ${s.height} · ${s.viewers} viewer${s.viewers === 1 ? '' : 's'}`
     : phase === 'connecting' ? 'Connecting to the camera…'
     : phase === 'error' ? `Camera offline, retrying · ${s.message}`
     : 'Not connected';
-  const hint = $('mp-cctv-hint');
   hint.textContent = phase === 'error' && s.hint ? s.hint : '';
   hint.classList.toggle('hidden', !hint.textContent);
 }
@@ -545,6 +568,8 @@ $('f-opacity').addEventListener('change', (e) => {
 $('f-fit').addEventListener('change', (e) => { const l = selectedLayer(); if (l) updateLayer(l.id, { fit: e.target.value }); });
 $('f-border').addEventListener('change', (e) => { const l = selectedLayer(); if (l) updateLayer(l.id, { border: e.target.checked }); });
 $('f-mirror').addEventListener('change', (e) => { const l = selectedLayer(); if (l) updateLayer(l.id, { mirror: e.target.checked }); });
+$('f-loop').addEventListener('change', (e) => { const l = selectedLayer(); if (l) updateLayer(l.id, { loop: e.target.checked }); });
+$('f-muted').addEventListener('change', (e) => { const l = selectedLayer(); if (l) updateLayer(l.id, { muted: e.target.checked }); });
 $('f-name').addEventListener('change', (e) => {
   if (state.selectedId === L.MAIN_ID) return updateMain({ label: e.target.value.trim() || state.layout.main.label });
   const l = selectedLayer();
@@ -586,7 +611,9 @@ $('btn-group').addEventListener('click', () => { const l = selectedLayer(); if (
 $('btn-duplicate').addEventListener('click', () => {
   const l = selectedLayer();
   if (!l) return;
-  addLayer(L.newLayer(l.type, Object.assign({}, l, { id: undefined, name: t('{name} copy', { name: l.name }), x: l.x + 40, y: l.y + 40 })));
+  // a text window's name is what it shows: its copy shows the same
+  const name = l.type === 'text' ? l.name : t('{name} copy', { name: l.name });
+  addLayer(L.newLayer(l.type, Object.assign({}, l, { id: undefined, name, x: l.x + 40, y: l.y + 40 })));
 });
 
 // keyboard: nudge / delete / deselect
@@ -640,25 +667,27 @@ const DIALOG_HEADS = {
 };
 
 /**
- * Add source, for the main screen or the split screen. The Custom tab gives the main screen its own picture, and
- * either screen a PNG / GIF: the split screen gets only that. The main screen's layers fill the program, so their
- * size and position options are hidden.
+ * Add source, for the main screen or the split screen, with the same tabs. On the main screen a source fills the
+ * program, so the size and position options are hidden, and Custom changes the main screen's own picture; on the
+ * split screen every source, Custom's too, is a window.
  */
 function openDialog(tab, group = 'split') {
   state.addGroup = group;
   const [title, sub] = DIALOG_HEADS[group];
   $('add-title').textContent = title;
   $('add-sub').textContent = sub;
-  $('main-types').classList.toggle('hidden', group !== 'main');
   for (const el of dialog.querySelectorAll('.placement')) el.classList.toggle('hidden', group === 'main');
+  $('main-apply').textContent = applyLabel();
   switchTab(tab || 'camera');
   if (!dialog.open) dialog.showModal();
   if ((tab || 'camera') === 'camera') listCameras();
-  syncMainForm();
-  if (group === 'split') {
-    dialog.querySelector('input[name="main-type"][value="png"]').checked = true;
-    showMainFields();
-  }
+  if (group === 'main') syncMainForm();
+  else newCustomForm();
+}
+
+/** What the Custom tab's button does: change the main screen's picture, or add a window. */
+function applyLabel() {
+  return state.addGroup === 'main' ? 'Apply to main screen' : 'Add to layout';
 }
 
 function switchTab(id) {
@@ -1392,6 +1421,18 @@ function linkTitle(url) {
   }
 }
 
+/** The Custom tab for a new split screen window: PNG / GIF chosen, the other fields empty. */
+function newCustomForm() {
+  dialog.querySelector('input[name="main-type"][value="png"]').checked = true;
+  $('main-label').value = '';
+  $('main-url').value = '';
+  $('main-fit').value = 'cover';
+  $('main-loop').checked = true;
+  $('main-muted').checked = true;
+  showMainFields();
+  loadCctv();
+}
+
 function syncMainForm() {
   const m = state.layout.main;
   // a video link and a YouTube link both go in Video URL
@@ -1515,7 +1556,7 @@ $('cctv-test').addEventListener('click', async () => {
 
 $('cctv-delete').addEventListener('click', async () => {
   const cam = selectedCctv();
-  if (!cam || !confirm(t('Delete the camera "{name}"? If it is on the main screen, the main screen goes back to the placeholder.', { name: cam.name }))) return;
+  if (!cam || !confirm(t('Delete the camera "{name}"? A main screen that shows it goes back to the placeholder, and its split screen windows go too.', { name: cam.name }))) return;
   const res = await fetch(`/api/cctv/${cam.id}`, { method: 'DELETE' });
   if (!res.ok) return setCctvResult('Could not delete the camera.', 'error');
   await loadCctv('');
@@ -1529,75 +1570,113 @@ $('main-apply').addEventListener('click', async () => {
   const btn = $('main-apply');
   btn.disabled = true;
   try {
-    const prev = state.layout.main;
-    const main = Object.assign({}, prev, {
-      fit: $('main-fit').value,
-      loop: $('main-loop').checked,
-      muted: $('main-muted').checked,
-    });
-    let name = ''; // the name of a newly chosen file or link
-    if (type === 'placeholder') {
-      main.type = 'placeholder';
-      main.src = '';
-      main.label = $('main-label').value.trim() || 'Main Screen';
-    } else if (type === 'url') {
-      const url = $('main-url').value.trim();
-      if (L.youtubeInfo(url)) {
-        btn.textContent = 'Checking the video…';
-        const yt = await checkYoutube(url);
-        main.type = 'youtube';
-        main.src = yt.src;
-        name = yt.title || t('YouTube video');
-      } else {
-        if (!/^https?:\/\//i.test(url)) throw new Error('Enter a YouTube link, or a direct http(s) link to an .mp4 or .webm file.');
-        main.type = 'video';
-        main.src = url;
-        name = linkTitle(url);
-      }
-    } else if (type === 'cctv') {
-      btn.textContent = 'Saving camera…';
-      const cam = await saveCctv();
-      main.type = 'cctv';
-      main.src = L.cctvSrc(cam.id);
-      main.label = cam.name;
-    } else {
-      const input = type === 'video' ? $('main-video') : $('main-image');
-      const file = input.files[0];
-      if (!file) {
-        if (state.layout.main.type === type && state.layout.main.src) {
-          // keep the current file, only options changed
-        } else {
-          throw new Error('Choose a file first.');
-        }
-      } else {
-        btn.textContent = 'Uploading…';
-        const up = await uploadFile(file);
-        main.src = up.url;
-        name = fileTitle(file.name); // the browser's name: the server's can come back mis-decoded
-      }
-      main.type = type;
-    }
-    // a crop and a name belong to their source: a new file or link starts uncropped, under its own name
-    if (main.type !== prev.type || main.src !== prev.src) {
-      main.crop = L.sanitizeCrop();
-      if (['video', 'image', 'youtube'].includes(main.type)) main.label = name || mainKind(main);
-    }
-    state.layout = Object.assign({}, state.layout, { main });
-    // the source shows selected under Main Screen, ready for its fit and crop; the placeholder has no layer
-    if (main.type !== 'placeholder') state.selectedId = L.MAIN_ID;
-    dropStaleSelection();
-    renderAll();
-    pushLayout();
+    const source = await customSource(type, btn);
+    if (state.addGroup === 'main') applyToMain(source);
+    else await addWindow(source);
+    // the next time starts from empty file fields
+    $('main-video').value = '';
+    $('main-image').value = '';
     dialog.close();
-    toast('Main screen updated.');
   } catch (e) {
     err.textContent = e.message;
     err.classList.remove('hidden');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Apply to main screen';
+    btn.textContent = applyLabel();
   }
 });
+
+/**
+ * The source the Custom tab describes, { type, src, name }: uploaded, checked with YouTube or saved on the way. The
+ * main screen keeps its video or image file when no other is chosen.
+ */
+async function customSource(type, btn) {
+  if (type === 'placeholder') return { type, src: '', name: $('main-label').value.trim() };
+  if (type === 'url') {
+    const url = $('main-url').value.trim();
+    if (L.youtubeInfo(url)) {
+      btn.textContent = 'Checking the video…';
+      const yt = await checkYoutube(url);
+      return { type: 'youtube', src: yt.src, name: yt.title || t('YouTube video') };
+    }
+    if (!/^https?:\/\//i.test(url)) throw new Error('Enter a YouTube link, or a direct http(s) link to an .mp4 or .webm file.');
+    return { type: 'video', src: url, name: linkTitle(url) };
+  }
+  if (type === 'cctv') {
+    btn.textContent = 'Saving camera…';
+    const cam = await saveCctv();
+    return { type, src: L.cctvSrc(cam.id), name: cam.name };
+  }
+  const file = (type === 'video' ? $('main-video') : $('main-image')).files[0];
+  if (!file) {
+    const m = state.layout.main;
+    if (state.addGroup === 'main' && m.type === type && m.src) return { type, src: m.src, name: '' }; // only options changed
+    throw new Error('Choose a file first.');
+  }
+  btn.textContent = 'Uploading…';
+  const up = await uploadFile(file);
+  return { type, src: up.url, name: fileTitle(file.name) }; // the browser's name: the server's can come back mis-decoded
+}
+
+/** The Custom tab's source becomes the main screen's own picture. */
+function applyToMain(source) {
+  const prev = state.layout.main;
+  const main = Object.assign({}, prev, {
+    type: source.type,
+    src: source.src,
+    fit: $('main-fit').value,
+    loop: $('main-loop').checked,
+    muted: $('main-muted').checked,
+  });
+  if (source.type === 'placeholder') main.label = source.name || 'Main Screen';
+  else if (source.type === 'cctv') main.label = source.name;
+  // a crop and a name belong to their source: a new file or link starts uncropped, under its own name
+  if (main.type !== prev.type || main.src !== prev.src) {
+    main.crop = L.sanitizeCrop();
+    if (['video', 'image', 'youtube'].includes(main.type)) main.label = source.name || mainKind(main);
+  }
+  state.layout = Object.assign({}, state.layout, { main });
+  // the source shows selected under Main Screen, ready for its fit and crop; the placeholder has no layer
+  if (main.type !== 'placeholder') state.selectedId = L.MAIN_ID;
+  dropStaleSelection();
+  renderAll();
+  pushLayout();
+  toast('Main screen updated.');
+}
+
+/**
+ * The Custom tab's source as a split screen window: the placeholder's text becomes a text window, the rest plays as
+ * it would on the main screen. It takes the chosen share of the output width, at 16:9 (an image keeps its shape).
+ */
+async function addWindow(source) {
+  const text = source.type === 'placeholder';
+  if (text && !source.name) throw new Error('Type the text to show.');
+  const type = text ? 'text' : source.type;
+  const props = {
+    group: 'split',
+    name: source.name || t(mainKind(source)),
+    src: source.src,
+    fit: $('main-fit').value,
+    loop: $('main-loop').checked,
+    muted: $('main-muted').checked,
+  };
+  let layer;
+  if (Number($('main-size').value) >= 1) {
+    layer = L.newLayer(type, Object.assign(props, FULL_SCREEN));
+  } else {
+    const shape = type === 'image' ? await imageSize(source.src) : { w: 16, h: 9 };
+    let w = Math.round(L.OUTPUT_W * Number($('main-size').value));
+    let h = Math.round((w * shape.h) / shape.w);
+    if (h > L.OUTPUT_H) {
+      h = L.OUTPUT_H;
+      w = Math.round((h * shape.w) / shape.h);
+    }
+    const look = type === 'image' ? { radius: 0, border: false } : { radius: 8, border: true };
+    layer = L.snapToAnchor(L.newLayer(type, Object.assign(props, look, { w, h })), $('main-pos').value);
+  }
+  addLayer(layer);
+  toast(`${layer.name} added to the split screen.`);
+}
 
 // ---------------------------------------------------------------------------
 // Realtime: layout sync + peers
@@ -1616,7 +1695,8 @@ socket.on('connect', () => {
 socket.on('cctv:status', (status) => {
   state.cctv.status.set(status.id, status);
   stage.setCctvStatus(status);
-  if (state.selectedId === L.MAIN_ID) renderMainProps();
+  // the main screen's or a CCTV window's status in Properties
+  if (state.selectedId) renderProps();
 });
 
 socket.on('layout', (next) => {

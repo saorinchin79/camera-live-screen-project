@@ -272,8 +272,8 @@ export default {
   'Delete this camera': 'លុបកាមេរ៉ានេះ',
   'Could not delete the camera.': 'មិនអាចលុបកាមេរ៉ាបានទេ។',
   'Camera "{name}" deleted.': 'បានលុបកាមេរ៉ា «{name}»។',
-  'Delete the camera "{name}"? If it is on the main screen, the main screen goes back to the placeholder.':
-    'លុបកាមេរ៉ា «{name}»? បើវានៅលើអេក្រង់មេ អេក្រង់មេនឹងត្រឡប់ទៅអក្សរជំនួសវិញ។',
+  'Delete the camera "{name}"? A main screen that shows it goes back to the placeholder, and its split screen windows go too.':
+    'លុបកាមេរ៉ា «{name}»? អេក្រង់មេដែលបង្ហាញវានឹងត្រឡប់ទៅអក្សរជំនួសវិញ ហើយផ្ទាំងរបស់វាក្នុងអេក្រង់បំបែកក៏ត្រូវលុបដែរ។',
 
   // custom: PNG / GIF
   'Drop a PNG or GIF here': 'ទម្លាក់ PNG ឬ GIF នៅទីនេះ',
@@ -289,8 +289,13 @@ export default {
 
   // ---------- layers the admin names ----------
   '{name} copy': '{name} ច្បាប់ចម្លង',
-  'Add a camera, USB device or screen share to the split screen first — templates position it.':
-    'បន្ថែមកាមេរ៉ា ឧបករណ៍ USB ឬការចែករំលែកអេក្រង់ទៅអេក្រង់បំបែកជាមុនសិន — ប្លង់គំរូនឹងដាក់ទីតាំងវា។',
+  'Add a camera, a screen share or a video to the split screen first — templates position it.':
+    'បន្ថែមកាមេរ៉ា ការចែករំលែកអេក្រង់ ឬវីដេអូទៅអេក្រង់បំបែកជាមុនសិន — ប្លង់គំរូនឹងដាក់ទីតាំងវា។',
+
+  // ---------- split screen windows from Custom ----------
+  'Text': 'អក្សរ',
+  'Type the text to show.': 'សូមវាយអក្សរដែលត្រូវបង្ហាញ។',
+  '{name} added to the split screen.': '{name} ត្រូវបានបន្ថែមទៅអេក្រង់បំបែក។',
 
   // ---------- errors ----------
   'This browser cannot access the camera here. Open the admin on http://localhost or over HTTPS.':

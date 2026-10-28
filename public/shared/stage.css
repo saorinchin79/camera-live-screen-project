@@ -193,15 +193,41 @@
 
 .layer-camera .layer-badge,
 .layer-usb .layer-badge,
-.layer-screen .layer-badge {
+.layer-screen .layer-badge,
+.layer-youtube .layer-badge,
+.layer-cctv .layer-badge {
   background: #d7322e;
   color: #fff;
 }
 
-/* a shared window keeps its own shape: black around it, like a letterboxed video */
+/* a shared window, a video, YouTube or a CCTV camera keeps its own shape: black around it, like a letterboxed video */
 .layer-screen .layer-box,
-.layer-screen .layer-placeholder {
+.layer-screen .layer-placeholder,
+.layer-video .layer-box,
+.layer-video .layer-placeholder,
+.layer-youtube .layer-box,
+.layer-cctv .layer-box,
+.layer-cctv .layer-placeholder {
   background: #000;
+}
+
+/* a text window: its name, centred on one line (stage.js sizes it to the window) */
+.layer-caption {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.layer-caption span {
+  max-width: 88%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
 .layer-name {

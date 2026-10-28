@@ -3,7 +3,8 @@
  *
  * A layout describes the 1920x1080 program:
  *   main   — what fills the whole screen (placeholder, uploaded video or image, YouTube video, live CCTV camera)
- *   layers — drawn on top, back to front (local camera, USB device, shared screen, image). Each belongs to a screen:
+ *   layers — drawn on top, back to front (local camera, USB device, shared screen, image, video, YouTube video,
+ *            live CCTV camera, text). Each belongs to a screen:
  *            group "main" layers are part of the main screen (a shared browser tab filling the program, say),
  *            group "split" layers are the split-screen windows above it. The main screen's come first in the list.
  * Every source can be cropped: `crop` cuts a percentage off each edge before the rest is fitted.
@@ -18,10 +19,15 @@
   const OUTPUT_H = 1080;
   const SAFE_MARGIN = 48;
 
-  const LAYER_TYPES = ['camera', 'image', 'usb', 'screen'];
+  const LAYER_TYPES = ['camera', 'image', 'usb', 'screen', 'video', 'youtube', 'cctv', 'text'];
   /** Overlays that show live video from the admin's browser: its camera, a USB device, a shared screen or window. */
   const LIVE_TYPES = ['camera', 'usb', 'screen'];
-  const LAYER_NAMES = { camera: 'Local Camera', image: 'Image', usb: 'USB device', screen: 'Screen share' };
+  /** Layers that play from a file, a link or the server, like the main screen's own picture (a text layer shows its name). */
+  const PLAYED_TYPES = ['video', 'youtube', 'cctv'];
+  const LAYER_NAMES = {
+    camera: 'Local Camera', image: 'Image', usb: 'USB device', screen: 'Screen share',
+    video: 'Video', youtube: 'YouTube video', cctv: 'CCTV camera', text: 'Text',
+  };
   /** A USB device or screen share is published by the admin under a source id; its overlays show that stream. */
   const SOURCE_ID = /^[a-z0-9-]{1,40}$/;
   const FITS = ['cover', 'contain', 'fill'];
@@ -205,9 +211,20 @@
     };
   }
 
+  /** What a layer plays: a file or link for an image or a video, a clean YouTube link, a CCTV stream; nothing else. */
+  function layerSrc(type, src, yt) {
+    if (type === 'youtube') return yt ? youtubeSrc(yt) : '';
+    if (type === 'cctv') return isCctvSrc(src) ? src : '';
+    if (type === 'image' || type === 'video') return isSafeSrc(src) && !isCctvSrc(src) ? src : '';
+    return '';
+  }
+
   function sanitizeLayer(raw, index) {
     const l = raw && typeof raw === 'object' ? raw : {};
-    const type = LAYER_TYPES.includes(l.type) ? l.type : 'image';
+    const yt = youtubeInfo(l.src);
+    // a YouTube link never plays in a video element: such a video layer is a YouTube one
+    const wanted = l.type === 'video' && yt ? 'youtube' : l.type;
+    const type = LAYER_TYPES.includes(wanted) ? wanted : 'image';
     const w = clamp(Math.round(num(l.w, 640)), 16, OUTPUT_W);
     const h = clamp(Math.round(num(l.h, 360)), 16, OUTPUT_H);
     const layer = {
@@ -215,7 +232,7 @@
       type,
       group: l.group === 'main' ? 'main' : 'split',
       name: String(l.name || LAYER_NAMES[type]).slice(0, 80),
-      src: type === 'image' && isSafeSrc(l.src) ? l.src : '',
+      src: layerSrc(type, l.src, yt),
       x: clamp(Math.round(num(l.x, 0)), -OUTPUT_W, OUTPUT_W),
       y: clamp(Math.round(num(l.y, 0)), -OUTPUT_H, OUTPUT_H),
       w,
@@ -230,6 +247,7 @@
     };
     if (type === 'usb' || type === 'screen') layer.source = SOURCE_ID.test(l.source) ? l.source : uid(type);
     if (type === 'usb') layer.device = sanitizeDevice(l.device);
+    if (type === 'video' || type === 'youtube') Object.assign(layer, { loop: l.loop !== false, muted: l.muted !== false });
     return layer;
   }
 
@@ -310,10 +328,14 @@
     return layers.slice().sort((a, b) => rank(a) - rank(b));
   }
 
-  /** The layer a template moves: the split screen's local camera, or without one its first USB device or screen share. */
+  /**
+   * The layer a template moves: the split screen's local camera, or without one its first USB device or screen share,
+   * or its first video, YouTube or CCTV window.
+   */
   function templateTarget(layers) {
     const split = layers.filter((l) => l.group !== 'main');
-    return split.find((l) => l.type === 'camera') || split.find((l) => LIVE_TYPES.includes(l.type)) || null;
+    const first = (types) => split.find((l) => types.includes(l.type));
+    return first(['camera']) || first(LIVE_TYPES) || first(PLAYED_TYPES) || null;
   }
 
   function applyTemplate(layout, templateId) {
@@ -334,6 +356,7 @@
     SAFE_MARGIN,
     LAYER_TYPES,
     LIVE_TYPES,
+    PLAYED_TYPES,
     FITS,
     MAIN_TYPES,
     MAIN_ID,

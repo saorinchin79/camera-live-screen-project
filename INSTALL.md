@@ -216,7 +216,8 @@ browsers never share a screen without asking.
 - **Main Screen**: what you add fills the whole program, such as a shared browser tab, a capture card or the webcam.
   Here the **Custom** tab also gives the main screen its own video, picture or CCTV camera underneath (see 7.3).
 - **Split Screen**: what you add is a window on top of the main screen, such as the webcam in a corner. The
-  **Add source** button at the top does the same.
+  **Add source** button at the top does the same. Its **Custom** tab has the same choices as the main screen's
+  (text, a video, a picture, a YouTube link, a CCTV camera), each as a window you size and place.
 
 PNG and GIF pictures, such as a logo or an animated sticker, are in the **Custom** tab for both cards.
 
@@ -294,7 +295,8 @@ Optional check: in **VLC media player** choose **Media → Open Network Stream**
 
 The camera is saved. To add more cameras, choose **+ Add a new camera** in the **Camera** list. To switch, click
 **Main Screen** again (or the pencil next to the camera under it), pick another camera and click
-**Apply to main screen**.
+**Apply to main screen**. To show a camera in a window instead, for example in a corner, click **Split Screen**
+and choose **Live CCTV camera** in **Custom**.
 
 The password is kept on this computer only. The admin page shows it as `••••`, and the screens never receive it.
 

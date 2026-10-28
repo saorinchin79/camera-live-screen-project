@@ -128,13 +128,18 @@
       </div>
 
       <div id="props" class="props hidden">
-        <!-- USB device / screen share overlays -->
+        <!-- USB device / screen share: status and start / stop; CCTV window: its camera's status; video / YouTube window: loop and sound -->
         <section id="sec-source" class="hidden">
           <h3>Source</h3>
           <div id="src-status" class="cctv-status"><span class="cctv-dot" aria-hidden="true"></span><span id="src-status-text"></span></div>
-          <div class="btn-row">
+          <p id="src-hint" class="muted small hidden"></p>
+          <div id="src-buttons" class="btn-row">
             <button id="src-start" class="btn btn-ghost" type="button">Start device</button>
             <button id="src-stop" class="btn btn-ghost" type="button">Stop</button>
+          </div>
+          <div id="src-player" class="stack compact">
+            <label class="check"><input id="f-loop" type="checkbox">Loop video</label>
+            <label class="check"><input id="f-muted" type="checkbox">Mute video (required for autoplay)</label>
           </div>
         </section>
 
@@ -356,6 +361,11 @@
               <label class="check"><input id="main-loop" type="checkbox" checked>Loop video</label>
               <label class="check"><input id="main-muted" type="checkbox" checked>Mute video (required for autoplay)</label>
             </div>
+          </div>
+          <!-- a split screen window: where it goes -->
+          <div class="dialog-options placement">
+            <label>Initial size<select id="main-size"><option value="0.25">1/4 width · 480 px</option><option value="0.3333" selected>1/3 width · 640 px</option><option value="0.5">1/2 width · 960 px</option><option value="0.6667">2/3 width · 1280 px</option><option value="1">Full screen · 1920 px</option></select></label>
+            <label>Position<select id="main-pos" class="anchor-select"></select></label>
           </div>
           <p id="main-error" class="error hidden"></p>
         </div>

@@ -35,12 +35,12 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'f' || e.key === 'F') toggleFullscreen();
 });
 
-// the first click or key on this page lets a main screen video with sound start (browsers block it before)
+// the first click or key on this page lets the videos with sound start (browsers block them before)
 let used = false;
 function firstUse() {
   if (used) return;
   used = true;
-  stage.replayMain();
+  stage.startSound();
 }
 document.addEventListener('pointerdown', firstUse);
 document.addEventListener('keydown', firstUse);

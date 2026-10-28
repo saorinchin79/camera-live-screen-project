@@ -10,12 +10,12 @@
  *   stage.setSourceStream(sourceId, mediaStream);   // a USB device or screen share
  *   stage.setLiveSources(sources);  // the server's "sources" events: what the admin publishes
  *   stage.setCctvStatus(status);   // the server's "cctv:status" events
- *   stage.replayMain();   // after the first click or key on the page: a main screen video with sound can start
+ *   stage.startSound();   // after the first click or key on the page: videos and YouTube players with sound can start
  */
 const L = window.StreamLayout;
 
 const HANDLE_DIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
-const LIVE_BADGES = { camera: 'LIVE', usb: 'USB', screen: 'SCREEN' };
+const LAYER_BADGES = { camera: 'LIVE', usb: 'USB', screen: 'SCREEN', video: 'VIDEO', youtube: 'YOUTUBE', cctv: 'CCTV', text: 'TEXT' };
 /** The attribute that names a main screen's media for screen readers. */
 const LABEL_ATTRS = { VIDEO: 'aria-label', IFRAME: 'title' };
 
@@ -213,32 +213,47 @@ export function createStage(container, options = {}) {
   }
 
   /**
-   * Starts a main screen video or YouTube player that plays its sound, after a first click or key on the page: a
-   * browser plays sound only on a page someone has used, so it could not start by itself before. A video file
-   * goes on where it is; YouTube's player is loaded again.
+   * Starts the videos and YouTube players that play their sound (the main screen's and the windows'), after a first
+   * click or key on the page: a browser plays sound only on a page someone has used, so they could not start by
+   * themselves before. A video file goes on where it is; a YouTube player is loaded again.
    */
-  function replayMain() {
+  function startSound() {
     const main = state.layout && state.layout.main;
-    if (!main || main.muted || !state.mainView) return;
-    if (main.type === 'video') {
-      state.mainView.media.play().catch(() => {});
-    } else if (main.type === 'youtube') {
-      state.mainKey = '';
-      renderMain(main);
+    if (main && !main.muted && state.mainView) {
+      if (main.type === 'video') {
+        state.mainView.media.play().catch(() => {});
+      } else if (main.type === 'youtube') {
+        state.mainKey = '';
+        renderMain(main);
+      }
+    }
+    for (const entry of state.els.values()) {
+      if (entry.layer.muted !== false) continue;
+      if (entry.type === 'video') {
+        entry.media.play().catch(() => {});
+      } else if (entry.type === 'youtube') {
+        entry.src = '';
+        attachYoutube(entry);
+      }
     }
   }
 
-  /** Reconnects the main screen's CCTV stream, e.g. after the server restarted. */
+  /** Reconnects the CCTV streams (the main screen's and the windows'), e.g. after the server restarted. */
   function reloadStreams() {
     const main = state.layout && state.layout.main;
-    if (!state.mainView || !main || main.type !== 'cctv') return;
-    state.mainView.media.src = `${main.src}?t=${Date.now()}`;
+    if (state.mainView && main && main.type === 'cctv') state.mainView.media.src = `${main.src}?t=${Date.now()}`;
+    for (const entry of state.els.values()) {
+      if (entry.type === 'cctv' && entry.src) entry.media.src = `${entry.src}?t=${Date.now()}`;
+    }
   }
 
   function setCctvStatus(status) {
     if (!status || !status.id) return;
     state.cctv.set(status.id, status);
     renderCctvState();
+    for (const entry of state.els.values()) {
+      if (entry.type === 'cctv' && L.cctvIdOf(entry.src) === status.id) noteCctv(entry);
+    }
   }
 
   function renderCctvState() {
@@ -289,6 +304,9 @@ export function createStage(container, options = {}) {
     view.h = h;
     fitMedia(view);
     if (view === state.mainView) mainEl.classList.remove('cctv-waiting');
+    // a CCTV window shows its picture from the first frame on
+    const entry = state.els.get(view.id);
+    if (entry && entry.view === view && entry.type === 'cctv') entry.el.classList.remove('no-media');
     opts.onMediaSize(view.id, { w, h });
   }
 
@@ -347,22 +365,24 @@ export function createStage(container, options = {}) {
 
   // ---------- overlays ----------
 
+  function removeLayerEl(entry) {
+    entry.el.remove();
+    unmountMedia(entry.view);
+    clearTimeout(entry.retry);
+  }
+
   function renderLayers(layers) {
     const ids = new Set(layers.map((l) => l.id));
     for (const [id, entry] of state.els) {
       if (!ids.has(id)) {
-        entry.el.remove();
-        unmountMedia(entry.view);
+        removeLayerEl(entry);
         state.els.delete(id);
       }
     }
     layers.forEach((layer, index) => {
       let entry = state.els.get(layer.id);
       if (!entry || entry.type !== layer.type) {
-        if (entry) {
-          entry.el.remove();
-          unmountMedia(entry.view);
-        }
+        if (entry) removeLayerEl(entry);
         entry = createLayerEl(layer);
         state.els.set(layer.id, entry);
       }
@@ -386,13 +406,6 @@ export function createStage(container, options = {}) {
     placeholder.innerHTML = '<span class="layer-badge"></span><span class="layer-name"></span><span class="layer-note"></span>';
     box.appendChild(placeholder);
 
-    let media;
-    if (L.LIVE_TYPES.includes(layer.type)) {
-      media = document.createElement('video');
-      media.autoplay = true;
-      media.muted = true;
-      media.playsInline = true;
-    }
     if (layer.type === 'camera') {
       const sil = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       sil.setAttribute('viewBox', '0 0 160 90');
@@ -400,16 +413,24 @@ export function createStage(container, options = {}) {
       sil.setAttribute('class', 'layer-silhouette');
       sil.innerHTML = '<circle cx="80" cy="38" r="18"></circle><path d="M34 92c4-24 22-34 46-34s42 10 46 34z"></path>';
       placeholder.insertBefore(sil, placeholder.firstChild);
-    } else if (!media) {
-      media = document.createElement('img');
-      media.alt = '';
-      media.draggable = false;
-      media.addEventListener('error', () => el.classList.add('media-error'));
-      media.addEventListener('load', () => el.classList.remove('media-error'));
     }
-    const view = mountMedia(box, media, layer.id);
+    // a text window's words (its element is .layer-text already)
+    let caption = null;
+    if (layer.type === 'text') {
+      const line = document.createElement('div');
+      line.className = 'layer-caption';
+      caption = line.appendChild(document.createElement('span'));
+      box.appendChild(line);
+    }
+    const media = createMedia(layer, el);
+    // an MJPEG stream need not fire "load" for its frames: its size is watched instead
+    const view = media ? mountMedia(box, media, layer.id, { poll: layer.type === 'cctv' }) : null;
+    // YouTube's player has no size of its own: a 16:9 window that letterboxes the video
+    if (layer.type === 'youtube') Object.assign(view, { w: L.OUTPUT_W, h: L.OUTPUT_H, nominal: true });
 
-    const entry = { el, box, media, view, placeholder, type: layer.type, layer };
+    const entry = { el, box, media, view, placeholder, caption, type: layer.type, layer, src: '', retry: null };
+    // a CCTV stream that breaks connects again by itself
+    if (layer.type === 'cctv') media.addEventListener('error', () => retryCctv(entry));
 
     if (opts.interactive) {
       const label = document.createElement('div');
@@ -440,26 +461,102 @@ export function createStage(container, options = {}) {
     el.classList.toggle('selected', layer.id === state.selectedId);
     box.style.borderRadius = layer.radius + 'px';
     box.classList.toggle('bordered', !!layer.border);
-    media.style.transform = layer.mirror ? 'scaleX(-1)' : '';
+    if (media) media.style.transform = layer.mirror ? 'scaleX(-1)' : '';
 
-    placeholder.querySelector('.layer-badge').textContent = LIVE_BADGES[layer.type] || badgeFor(layer.src);
+    placeholder.querySelector('.layer-badge').textContent = LAYER_BADGES[layer.type] || badgeFor(layer.src);
     placeholder.querySelector('.layer-name').textContent = layer.name;
     placeholder.querySelector('.layer-note').textContent = `${layer.w} × ${layer.h}`;
     if (entry.label) entry.label.textContent = `${layer.name} · ${layer.x}, ${layer.y} · ${layer.w} × ${layer.h}`;
 
-    if (layer.type === 'camera') {
-      attachCamera(entry);
-    } else if (layer.source) {
-      attachSource(entry);
-    } else {
-      if (media.getAttribute('src') !== (layer.src || '')) {
-        entry.view.w = entry.view.h = 0; // a new picture is fitted again once its size is known
-        if (layer.src) media.setAttribute('src', layer.src);
-        else media.removeAttribute('src');
-      }
-      el.classList.toggle('no-media', !layer.src);
+    if (layer.type === 'camera') attachCamera(entry);
+    else if (layer.source) attachSource(entry);
+    else if (layer.type === 'youtube') attachYoutube(entry);
+    else if (layer.type === 'text') attachText(entry, layer);
+    else attachFile(entry);
+    if (entry.view) fitMedia(entry.view, layer.w, layer.h, layer.fit, layer.crop);
+  }
+
+  /** The element that shows a layer: a video for live sources and video files, YouTube's player, else an image. */
+  function createMedia(layer, el) {
+    if (layer.type === 'text') return null;
+    if (layer.type === 'youtube') {
+      const player = document.createElement('iframe');
+      player.allow = 'autoplay; encrypted-media';
+      player.referrerPolicy = 'strict-origin-when-cross-origin';
+      player.tabIndex = -1;
+      return player;
     }
-    fitMedia(entry.view, layer.w, layer.h, layer.fit, layer.crop);
+    const video = L.LIVE_TYPES.includes(layer.type) || layer.type === 'video';
+    const media = document.createElement(video ? 'video' : 'img');
+    if (video) {
+      media.autoplay = true;
+      media.muted = true;
+      media.playsInline = true;
+    } else {
+      media.alt = '';
+      media.draggable = false;
+    }
+    if (layer.type === 'image' || layer.type === 'video') {
+      // a file that does not load shows the window's placeholder instead
+      media.addEventListener('error', () => el.classList.add('media-error'));
+      media.addEventListener(video ? 'loadeddata' : 'load', () => el.classList.remove('media-error'));
+    }
+    return media;
+  }
+
+  /** An image, a video file or a CCTV stream, played from the layer's src. */
+  function attachFile(entry) {
+    const { layer, media, el } = entry;
+    if (entry.src !== layer.src) {
+      entry.src = layer.src;
+      entry.view.w = entry.view.h = 0; // a new picture is fitted again once its size is known
+      if (layer.src) media.setAttribute('src', layer.src);
+      else media.removeAttribute('src');
+      if (layer.type === 'video' && layer.src) media.play().catch(() => {});
+    }
+    if (layer.type === 'video') {
+      media.loop = layer.loop;
+      media.muted = layer.muted;
+    }
+    // a CCTV window waits for its first frame
+    el.classList.toggle('no-media', !layer.src || (layer.type === 'cctv' && !entry.view.w));
+    if (layer.type === 'cctv') noteCctv(entry);
+  }
+
+  /** YouTube's player for a window: started again only when the video, its loop or its sound change. */
+  function attachYoutube(entry) {
+    const { layer, media } = entry;
+    const url = L.youtubeEmbedUrl(layer.src, layer);
+    if (entry.src !== url) {
+      entry.src = url;
+      if (url) media.src = url;
+      else media.removeAttribute('src');
+    }
+    media.title = layer.name;
+    entry.el.classList.toggle('no-media', !url);
+  }
+
+  /** A text window shows its name on one line, as large as the window takes it. */
+  function attachText(entry, layer) {
+    const size = Math.min(layer.h * 0.5, (layer.w * 0.88) / (Math.max(1, layer.name.length) * 0.56));
+    entry.caption.textContent = layer.name;
+    entry.caption.style.fontSize = `${Math.max(10, Math.round(size))}px`;
+  }
+
+  /** Why a CCTV window has no picture yet: the admin sees the camera's error, the program that it is retrying. */
+  function noteCctv(entry) {
+    if (entry.view.w) return;
+    const status = state.cctv.get(L.cctvIdOf(entry.src));
+    entry.placeholder.querySelector('.layer-note').textContent =
+      status && status.state === 'error' ? (opts.interactive ? `CCTV offline · ${status.message}` : 'CCTV offline · retrying') : 'Connecting…';
+  }
+
+  function retryCctv(entry) {
+    if (entry.retry) return;
+    entry.retry = setTimeout(() => {
+      entry.retry = null;
+      if (state.els.get(entry.layer.id) === entry && entry.src) entry.media.src = `${entry.src}?t=${Date.now()}`;
+    }, 3000);
   }
 
   function attachCamera(entry) {
@@ -594,7 +691,8 @@ export function createStage(container, options = {}) {
     entry.el.style.top = layer.y + 'px';
     entry.el.style.width = layer.w + 'px';
     entry.el.style.height = layer.h + 'px';
-    fitMedia(entry.view, layer.w, layer.h, layer.fit, layer.crop);
+    if (entry.view) fitMedia(entry.view, layer.w, layer.h, layer.fit, layer.crop);
+    if (entry.type === 'text') attachText(entry, layer);
     entry.placeholder.querySelector('.layer-note').textContent = `${layer.w} × ${layer.h}`;
     if (entry.label) entry.label.textContent = `${layer.name} · ${layer.x}, ${layer.y} · ${layer.w} × ${layer.h}`;
   }
@@ -616,7 +714,7 @@ export function createStage(container, options = {}) {
     setLiveSources,
     setCctvStatus,
     reloadStreams,
-    replayMain,
+    startSound,
     sourceSize,
     get scale() { return state.scale; },
   };

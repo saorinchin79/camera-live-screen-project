@@ -36,9 +36,9 @@ OBS as a **Browser Source** (1920 × 1080) to stream it.
 
 - **Main screen** — click **Main Screen** in Sources to add to it: a shared screen or browser tab, a USB device, the camera or a PNG/GIF that fills the program, and underneath them its own picture; PNG/GIF and the picture are in the **Custom** tab (placeholder text, an uploaded MP4/WebM video, an image, a YouTube link or a direct video URL, or a live CCTV camera; cover / contain / stretch). Each shows under the card as a layer: click it to edit it; the picture's pencil changes it.
 - **YouTube** — paste a YouTube video, live stream, Shorts or playlist link in **Custom → Video URL**. The server checks it first through YouTube's oEmbed: its title names the layer, and a video whose owner does not let other sites play it is refused before it goes on air. YouTube's own player then plays it on every output by itself, without controls, looping, muted unless *Mute video* is off. The outputs need internet. Browsers play sound only on a page someone has clicked: with *Mute video* off, the first click or key on the output page starts the sound, and OBS plays it straight away.
-- **Live CCTV** — RTSP (Hikvision, Dahua, Imou, NVRs…), RTMP, HTTP MJPEG or HLS cameras on the main screen; test a camera before it goes on air, keep several cameras and switch between them. See [Live CCTV](#live-cctv).
+- **Live CCTV** — RTSP (Hikvision, Dahua, Imou, NVRs…), RTMP, HTTP MJPEG or HLS cameras on the main screen or in split screen windows; test a camera before it goes on air, keep several cameras and switch between them. See [Live CCTV](#live-cctv).
 - **Crop** — cut a percentage off the top, bottom, left or right of any source (main screen or overlay) to remove a toolbar, a timestamp or black bars; the rest fills the window. Sliders in Properties, live in the preview.
-- **Split screen** — click **Split Screen** (or **Add source**) to add windows on top of the main screen; they show under the card as layers. Presets for the split screen's camera: Picture-in-picture, Half split, 1/2 horizontal, 1/3 horizontal, Presenter corner, Camera full screen.
+- **Split screen** — click **Split Screen** (or **Add source**) to add windows on top of the main screen; they show under the card as layers. Its **Custom** tab has the main screen's choices too (placeholder text, a video file, an image, a video URL or YouTube link, a live CCTV camera, a PNG/GIF), each as a window with its own size and position; a video or YouTube window has *Loop video* and *Mute video* in Properties. Presets for the split screen's camera: Picture-in-picture, Half split, 1/2 horizontal, 1/3 horizontal, Presenter corner, Camera full screen.
 - **Local camera live** — pick the camera device, resolution and mirroring; the stream goes to every output over WebRTC (optional microphone audio).
 - **USB devices** — HDMI capture cards, webcams and any other video device plugged into the admin's computer, several at once, each as its own overlay; pick the format (size and 30 / 60 fps). A device on the layout starts again by itself when the admin page opens or the device is plugged back in.
 - **Screen share** — share a whole screen, one window or a browser tab of the admin's computer (the browser asks which) at 15, 30 or 60 fps; any number of shares, each its own overlay. *Share again…* / *Change window…* in Properties.
@@ -115,7 +115,7 @@ The output page works over plain HTTP; only the admin needs HTTPS when it is not
 | `GET` | `/api/cctv` | CCTV cameras (passwords masked) with their live status |
 | `POST` | `/api/cctv` | Add a camera `{ name, url, fps }` (fps 5 / 10 / 15 / 25) |
 | `PUT` | `/api/cctv/:id` | Change a camera; a masked password in `url` keeps the stored one |
-| `DELETE` | `/api/cctv/:id` | Delete a camera (a main screen showing it goes back to the placeholder) |
+| `DELETE` | `/api/cctv/:id` | Delete a camera (a main screen showing it goes back to the placeholder, its split screen windows are removed) |
 | `POST` | `/api/cctv/test` | Grab one frame `{ url }` or `{ id, url }` → `{ ok, width, height, codec, image }` or `{ ok: false, error, hint }` |
 | `GET` | `/api/cctv/:id/stream.mjpg` | The camera live as `multipart/x-mixed-replace` MJPEG |
 | `GET` | `/api/youtube?url=…` | Check a YouTube link → `{ ok, src, title, author }`, or `{ ok: false, error }` for a video that is private, removed, or not allowed on other sites |
@@ -159,6 +159,8 @@ A YouTube main screen is `{ "type": "youtube", "src": "https://www.youtube.com/w
 A USB device overlay is `{ "type": "usb", "source": "usb-…", "device": { "id": "<browser device id>", "label": "<device name>",
 "width": 1920, "height": 1080, "fps": 30 }, … }`, a screen share `{ "type": "screen", "source": "screen-…", … }`;
 overlays with the same `source` show the same stream.
+A video, YouTube or CCTV window is `{ "type": "video" | "youtube" | "cctv", "src": …, … }` with the `src` rules of the main
+screen (video and YouTube add `"loop"` and `"muted"`), a text window `{ "type": "text", "name": "<the text it shows>", … }`.
 
 ## Project structure
 
