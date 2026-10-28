@@ -1,7 +1,7 @@
 {
   "name": "camera-live-screen",
   "version": "1.0.0",
-  "description": "Stream Studio — 1920x1080 program output with admin-controlled split-screen overlays (local camera, PNG, GIF).",
+  "description": "GP Studio — 1920x1080 program output with admin-controlled split-screen overlays (local camera, PNG, GIF).",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {

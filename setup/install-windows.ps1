@@ -1,16 +1,16 @@
 <#
-  Stream Studio installer for Windows 10 and 11.
+  GP Studio installer for Windows 10 and 11.
 
   Easiest: double-click Install-Windows.bat. Or paste this into PowerShell:
     irm https://raw.githubusercontent.com/saorinchin79/camera-live-screen-project/main/setup/install-windows.ps1 | iex
 
   It asks for the installation password, then installs into %USERPROFILE%\StreamStudio and needs
   no administrator rights:
-    1. copies Stream Studio there (from the folder around this script, or downloaded from GitHub)
+    1. copies GP Studio there (from the folder around this script, or downloaded from GitHub)
     2. uses Node.js 18+ if this PC has it, otherwise downloads Node.js LTS into StreamStudio\runtime\node
     3. installs the npm packages, including ffmpeg for the CCTV cameras
-    4. adds "Stream Studio" to the desktop and the Start menu, and on request starts it at log-in
-  Running it again updates Stream Studio and keeps the layout, the cameras and the uploads.
+    4. adds "GP Studio" to the desktop and the Start menu, and on request starts it at log-in
+  Running it again updates GP Studio and keeps the layout, the cameras and the uploads.
 
   Options: -InstallDir <folder>  -AutoStart / -NoAutoStart  -NoStart (do not offer to start it at the end)
   STREAM_STUDIO_ARCHIVE=<url of a .zip> installs from another copy of the project instead of GitHub.
@@ -100,14 +100,14 @@ function Get-SourceDir([string]$installDir) {
   }
   $url = "https://github.com/$Repo/archive/refs/heads/$Branch.zip"
   if ($env:STREAM_STUDIO_ARCHIVE) { $url = $env:STREAM_STUDIO_ARCHIVE }
-  Step 'Downloading Stream Studio'
+  Step 'Downloading GP Studio'
   Info $url
   $tmp = New-TempDir
   $zip = Join-Path $tmp 'stream-studio.zip'
   Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
   Expand-Zip $zip $tmp
   $dir = Get-ChildItem -Path $tmp -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'server.js') } | Select-Object -First 1
-  if (-not $dir) { throw "The download does not contain Stream Studio: $url" }
+  if (-not $dir) { throw "The download does not contain GP Studio: $url" }
   return $dir.FullName
 }
 
@@ -125,7 +125,7 @@ function Get-Port([string]$root) {
 function Stop-StreamStudio([string]$root) {
   # an update replaces node_modules, which Windows cannot do while the server or its ffmpeg is running.
   # Only THIS install's processes: its server.js on the command line, or a program inside its folder
-  # (runtime\node\node.exe, the ffmpeg npm installed). Another Stream Studio is left alone.
+  # (runtime\node\node.exe, the ffmpeg npm installed). Another GP Studio is left alone.
   $server = Join-Path $root 'server.js'
   $inside = $root.TrimEnd('\') + '\'
   $procs = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe' OR Name = 'ffmpeg.exe'" -ErrorAction SilentlyContinue |
@@ -134,7 +134,7 @@ function Stop-StreamStudio([string]$root) {
       ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($inside, [StringComparison]::OrdinalIgnoreCase))
     })
   if ($procs.Count -eq 0) { return }
-  Step 'Closing the running Stream Studio for the update'
+  Step 'Closing the running GP Studio for the update'
   $procs | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   Start-Sleep -Seconds 1
 }
@@ -142,7 +142,7 @@ function Stop-StreamStudio([string]$root) {
 function Copy-Project([string]$from, [string]$to) {
   # the code only: an earlier install keeps its data, uploads, runtime and node_modules
   & robocopy $from $to /E /XD node_modules data uploads runtime .git /NFL /NDL /NJH /NJS /NP | Out-Null
-  if ($LASTEXITCODE -ge 8) { throw "Copying Stream Studio to $to failed (robocopy error $LASTEXITCODE)." }
+  if ($LASTEXITCODE -ge 8) { throw "Copying GP Studio to $to failed (robocopy error $LASTEXITCODE)." }
 }
 
 # ---------- Node.js ----------
@@ -166,7 +166,7 @@ function Install-PortableNode([string]$root) {
   if (-not $release) { throw "No Node.js LTS release found for Windows $arch." }
   $version = $release.version
   $name = "node-$version-win-$arch"
-  Step "Downloading Node.js $version ($arch) for Stream Studio"
+  Step "Downloading Node.js $version ($arch) for GP Studio"
   $tmp = New-TempDir
   $zip = Join-Path $tmp "$name.zip"
   Invoke-WebRequest -UseBasicParsing -Uri "https://nodejs.org/dist/$version/$name.zip" -OutFile $zip
@@ -207,7 +207,7 @@ function New-Shortcut([string]$path, [string]$root, [string]$target, [string]$ar
 
 function Install-StreamStudio {
   Write-Host ''
-  Write-Host '  Stream Studio setup' -ForegroundColor Cyan
+  Write-Host '  GP Studio setup' -ForegroundColor Cyan
   Write-Host "  Installs into $InstallDir"
 
   Confirm-Password
@@ -217,7 +217,7 @@ function Install-StreamStudio {
   $port = Get-Port $root
   Stop-StreamStudio $root
   if ((Resolve-Path $source).Path -ne $root) {
-    Step "Copying Stream Studio to $root"
+    Step "Copying GP Studio to $root"
     Copy-Project $source $root
   }
   # files from a downloaded ZIP carry the "from the internet" mark that makes Windows ask before running them
@@ -251,39 +251,46 @@ function Install-StreamStudio {
     }
   }
 
-  Step 'Adding Stream Studio to the desktop and the Start menu'
-  $about = 'Stream Studio: camera live screen'
+  Step 'Adding GP Studio to the desktop and the Start menu'
+  $about = 'GP Studio: camera live screen'
+  $desktop = [Environment]::GetFolderPath('Desktop')
   $programs = [Environment]::GetFolderPath('Programs')
-  New-Shortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Stream Studio.lnk') $root 'Start-StreamStudio.bat' '' 1 $about
-  New-Shortcut (Join-Path $programs 'Stream Studio.lnk') $root 'Start-StreamStudio.bat' '' 1 $about
-  New-Shortcut (Join-Path $programs 'Stream Studio - Update.lnk') $root 'Install-Windows.bat' "-InstallDir `"$root`"" 1 'Download the latest Stream Studio and keep your layout, cameras and uploads'
+  $startup = Join-Path ([Environment]::GetFolderPath('Startup')) 'GP Studio.lnk'
+  # the shortcuts from before the name GP Studio go, the new ones replace them; starting at log-in stays on
+  $oldStartup = Join-Path ([Environment]::GetFolderPath('Startup')) 'Stream Studio.lnk'
+  $wasAuto = (Test-Path $startup) -or (Test-Path $oldStartup)
+  foreach ($old in @((Join-Path $desktop 'Stream Studio.lnk'), (Join-Path $programs 'Stream Studio.lnk'), (Join-Path $programs 'Stream Studio - Update.lnk'), $oldStartup)) {
+    if (Test-Path $old) { Remove-Item $old -ErrorAction SilentlyContinue }
+  }
+  New-Shortcut (Join-Path $desktop 'GP Studio.lnk') $root 'Start-StreamStudio.bat' '' 1 $about
+  New-Shortcut (Join-Path $programs 'GP Studio.lnk') $root 'Start-StreamStudio.bat' '' 1 $about
+  New-Shortcut (Join-Path $programs 'GP Studio - Update.lnk') $root 'Install-Windows.bat' "-InstallDir `"$root`"" 1 'Download the latest GP Studio and keep your layout, cameras and uploads'
 
-  $startup = Join-Path ([Environment]::GetFolderPath('Startup')) 'Stream Studio.lnk'
   $auto = $AutoStart.IsPresent
   if (-not $AutoStart -and -not $NoAutoStart) {
     $default = 'n'
     $hint = '[y/N]'
-    if (Test-Path $startup) { $default = 'y'; $hint = '[Y/n]' }
-    $auto = (Ask "Start Stream Studio automatically when you log in to Windows? $hint" $default) -match '^[yY]'
+    if ($wasAuto) { $default = 'y'; $hint = '[Y/n]' }
+    $auto = (Ask "Start GP Studio automatically when you log in to Windows? $hint" $default) -match '^[yY]'
   }
   if ($auto) {
     New-Shortcut $startup $root 'Start-StreamStudio.bat' '/nobrowser' 7 $about
-    Info 'Stream Studio will start (minimized, without the browser) when you log in.'
-  } elseif (Test-Path $startup) {
-    Remove-Item $startup
-    Info 'Stream Studio no longer starts at log-in.'
+    Info 'GP Studio will start (minimized, without the browser) when you log in.'
+  } elseif ($wasAuto) {
+    Remove-Item $startup -ErrorAction SilentlyContinue
+    Info 'GP Studio no longer starts at log-in.'
   }
 
-  Step 'Stream Studio is installed'
+  Step 'GP Studio is installed'
   Info "Folder : $root"
-  Info 'Start  : double-click "Stream Studio" on the desktop or in the Start menu'
+  Info 'Start  : double-click "GP Studio" on the desktop or in the Start menu'
   Info "Admin  : http://localhost:$port/admin/"
   Info "Output : http://localhost:$port/output/"
   Info 'The first time it starts, Windows Firewall may ask about Node.js: choose "Allow" so that'
   Info 'TVs and other computers on your network can open the output.'
 
   if (-not $NoStart) {
-    if ((Ask 'Start Stream Studio now? [Y/n]' 'y') -match '^[yY]') {
+    if ((Ask 'Start GP Studio now? [Y/n]' 'y') -match '^[yY]') {
       Start-Process -FilePath (Join-Path $root 'Start-StreamStudio.bat') -WorkingDirectory $root
     }
   }

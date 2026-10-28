@@ -1,9 +1,9 @@
 @echo off
-rem Stream Studio: starts the server and opens the admin page in the browser.
-rem Keep this window open while you use Stream Studio; close it to stop Stream Studio.
+rem GP Studio: starts the server and opens the admin page in the browser.
+rem Keep this window open while you use GP Studio; close it to stop GP Studio.
 rem   Start-StreamStudio.bat /nobrowser   starts it without the browser (used when it starts at log-in)
 rem The port is 3000; to use another one, write the number (for example 3001) into data\port.txt.
-title Stream Studio
+title GP Studio
 cd /d "%~dp0"
 set OPEN_BROWSER=1
 if /i "%~1"=="/nobrowser" set OPEN_BROWSER=

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Stream Studio: starts the server and opens the admin page in the browser (macOS and Linux).
-# Keep this window open while you use Stream Studio; close it to stop Stream Studio.
+# GP Studio: starts the server and opens the admin page in the browser (macOS and Linux).
+# Keep this window open while you use GP Studio; close it to stop GP Studio.
 #   Start-StreamStudio.command --no-browser   starts it without the browser
 # The port is 3000; to use another one, write the number (for example 3001) into data/port.txt.
 cd "$(dirname "$0")" || exit 1

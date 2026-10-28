@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Stream Studio installer for macOS and Linux.
+# GP Studio installer for macOS and Linux.
 #
 #   curl -fsSL https://raw.githubusercontent.com/saorinchin79/camera-live-screen-project/main/setup/install.sh | bash
 #   bash setup/install.sh            (inside a downloaded copy of the project)
 #
 # It installs into ~/StreamStudio and needs no administrator rights:
-#   1. copies Stream Studio there (from the folder around this script, or downloaded from GitHub)
+#   1. copies GP Studio there (from the folder around this script, or downloaded from GitHub)
 #   2. uses Node.js 18+ if this computer has it, otherwise downloads Node.js LTS into StreamStudio/runtime/node
 #   3. installs the npm packages, including ffmpeg for the CCTV cameras
-#   4. puts a "Stream Studio" launcher on the desktop, and on request starts it when you log in
-# Running it again (or bash ~/StreamStudio/setup/install.sh) updates Stream Studio to the latest version
+#   4. puts a "GP Studio" launcher on the desktop, and on request starts it when you log in
+# Running it again (or bash ~/StreamStudio/setup/install.sh) updates GP Studio to the latest version
 # and keeps the layout, the cameras and the uploads.
 #
 # Options: STREAM_STUDIO_DIR=<folder>  STREAM_STUDIO_AUTOSTART=yes|no  STREAM_STUDIO_START=no
@@ -75,7 +75,7 @@ proc_cwd() {
 }
 
 # an update replaces node_modules under a running server: stop the server of THIS install only (never
-# another Stream Studio on the same port, such as a developer copy); "Start now" brings it back
+# another GP Studio on the same port, such as a developer copy); "Start now" brings it back
 stop_running() {
   local pid args found=""
   for pid in $(pgrep -f 'server\.js' 2>/dev/null || true); do
@@ -88,7 +88,7 @@ stop_running() {
     found="$found $pid"
   done
   [ -n "$found" ] || return 0
-  step "Closing the running Stream Studio for the update"
+  step "Closing the running GP Studio for the update"
   # shellcheck disable=SC2086 # a list of pids
   kill $found 2>/dev/null || true
   sleep 1
@@ -108,7 +108,7 @@ esac
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-printf '\n  \033[36mStream Studio setup\033[0m\n  Installs into %s\n' "$INSTALL_DIR"
+printf '\n  \033[36mGP Studio setup\033[0m\n  Installs into %s\n' "$INSTALL_DIR"
 
 # ---------- the project ----------
 
@@ -122,13 +122,13 @@ if [ -n "$SCRIPT" ] && [ -f "$SCRIPT" ]; then
 fi
 if [ -z "$SOURCE" ]; then
   URL="${STREAM_STUDIO_ARCHIVE:-https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz}"
-  step "Downloading Stream Studio"
+  step "Downloading GP Studio"
   info "$URL"
   fetch "$URL" "$TMP/stream-studio.tar.gz"
   mkdir -p "$TMP/src"
   tar -xzf "$TMP/stream-studio.tar.gz" -C "$TMP/src"
   FOUND="$(find "$TMP/src" -maxdepth 2 -name server.js -type f -print -quit)"
-  [ -n "$FOUND" ] || die "the download does not contain Stream Studio: $URL"
+  [ -n "$FOUND" ] || die "the download does not contain GP Studio: $URL"
   SOURCE="$(dirname "$FOUND")"
 fi
 
@@ -136,7 +136,7 @@ mkdir -p "$INSTALL_DIR"
 INSTALL_DIR="$(cd "$INSTALL_DIR" && pwd -P)"
 stop_running
 if [ "$(cd "$SOURCE" && pwd -P)" != "$INSTALL_DIR" ]; then
-  step "Copying Stream Studio to $INSTALL_DIR"
+  step "Copying GP Studio to $INSTALL_DIR"
   # the code only: an earlier install keeps its data, uploads, runtime and node_modules
   (cd "$SOURCE" && tar -cf - --exclude=./node_modules --exclude=./data --exclude=./uploads --exclude=./runtime --exclude=./.git .) |
     (cd "$INSTALL_DIR" && tar -xf -)
@@ -154,7 +154,7 @@ install_node() {
   version="$(awk -F'\t' -v key="$key" 'NR > 1 && $10 != "-" && ("," $3 ",") ~ ("," key ",") { print $1; exit }' "$TMP/index.tab")"
   [ -n "$version" ] || die "no Node.js LTS build found for $OS-$ARCH"
   name="node-$version-$OS-$ARCH"
-  step "Downloading Node.js $version ($OS-$ARCH) for Stream Studio"
+  step "Downloading Node.js $version ($OS-$ARCH) for GP Studio"
   fetch "https://nodejs.org/dist/$version/$name.tar.gz" "$TMP/$name.tar.gz"
   fetch "https://nodejs.org/dist/$version/SHASUMS256.txt" "$TMP/SHASUMS256.txt"
   expected="$(awk -v file="$name.tar.gz" '$2 == file { print $1 }' "$TMP/SHASUMS256.txt")"
@@ -198,18 +198,20 @@ fi
 LAUNCHER="$INSTALL_DIR/Start-StreamStudio.command"
 chmod +x "$LAUNCHER" "$INSTALL_DIR/setup/install.sh"
 
-step "Adding Stream Studio to the desktop"
+step "Adding GP Studio to the desktop"
 if [ "$OS" = darwin ]; then
-  DESKTOP_LAUNCHER="$HOME/Desktop/Stream Studio.command"
+  DESKTOP_LAUNCHER="$HOME/Desktop/GP Studio.command"
+  # the launcher from before the name GP Studio goes: this one replaces it
+  rm -f "$HOME/Desktop/Stream Studio.command"
   if printf '#!/bin/bash\nexec "%s" "$@"\n' "$LAUNCHER" > "$DESKTOP_LAUNCHER" 2>/dev/null && chmod +x "$DESKTOP_LAUNCHER"; then
-    info "Desktop: Stream Studio (double-click it to start)"
+    info "Desktop: GP Studio (double-click it to start)"
   else
-    warn "Could not write to the Desktop folder; start Stream Studio with: $LAUNCHER"
+    warn "Could not write to the Desktop folder; start GP Studio with: $LAUNCHER"
   fi
 else
   ENTRY="[Desktop Entry]
 Type=Application
-Name=Stream Studio
+Name=GP Studio
 Comment=Camera live screen: admin and program output
 Exec=\"$LAUNCHER\"
 Icon=$INSTALL_DIR/setup/stream-studio.png
@@ -223,7 +225,7 @@ Categories=AudioVideo;Video;"
     chmod +x "$DESKTOP_DIR/stream-studio.desktop"
     gio set "$DESKTOP_DIR/stream-studio.desktop" metadata::trusted true 2>/dev/null || true
   fi
-  info "Applications menu and desktop: Stream Studio"
+  info "Applications menu and desktop: GP Studio"
 fi
 
 # ---------- start at log-in (in the background, no browser) ----------
@@ -236,9 +238,9 @@ fi
 AUTO="${STREAM_STUDIO_AUTOSTART:-}"
 if [ -z "$AUTO" ]; then
   if [ -f "$AUTOFILE" ]; then
-    AUTO="$(ask 'Start Stream Studio automatically when you log in? [Y/n]' y)"
+    AUTO="$(ask 'Start GP Studio automatically when you log in? [Y/n]' y)"
   else
-    AUTO="$(ask 'Start Stream Studio automatically when you log in? [y/N]' n)"
+    AUTO="$(ask 'Start GP Studio automatically when you log in? [y/N]' n)"
   fi
 fi
 case "$AUTO" in
@@ -264,25 +266,25 @@ case "$AUTO" in
 </dict>
 </plist>
 EOF
-      info "Stream Studio starts in the background from your next log-in (log: ~/Library/Logs/StreamStudio.log)."
+      info "GP Studio starts in the background from your next log-in (log: ~/Library/Logs/StreamStudio.log)."
     else
       cat > "$AUTOFILE" <<EOF
 [Desktop Entry]
 Type=Application
-Name=Stream Studio
-Comment=Starts the Stream Studio server in the background
+Name=GP Studio
+Comment=Starts the GP Studio server in the background
 Exec="$NODE" "$INSTALL_DIR/server.js"
 Path=$INSTALL_DIR
 Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
-      info "Stream Studio starts in the background from your next log-in."
+      info "GP Studio starts in the background from your next log-in."
     fi
     ;;
   *)
     if [ -f "$AUTOFILE" ]; then
       rm -f "$AUTOFILE"
-      info "Stream Studio no longer starts at log-in."
+      info "GP Studio no longer starts at log-in."
     fi
     ;;
 esac
@@ -290,12 +292,12 @@ esac
 # ---------- done ----------
 
 PORT="$(port_of "$INSTALL_DIR")"
-step "Stream Studio is installed"
+step "GP Studio is installed"
 info "Folder : $INSTALL_DIR"
 if [ "$OS" = darwin ]; then
-  info 'Start  : double-click "Stream Studio" on the desktop'
+  info 'Start  : double-click "GP Studio" on the desktop'
 else
-  info 'Start  : "Stream Studio" in the applications menu or on the desktop'
+  info 'Start  : "GP Studio" in the applications menu or on the desktop'
 fi
 info "Admin  : http://localhost:$PORT/admin/"
 info "Output : http://localhost:$PORT/output/"
@@ -305,10 +307,10 @@ if [ "$OS" = darwin ]; then
 fi
 
 if [ "${STREAM_STUDIO_START:-}" != no ]; then
-  case "$(ask 'Start Stream Studio now? [Y/n]' y)" in
+  case "$(ask 'Start GP Studio now? [Y/n]' y)" in
     [nN]*) ;;
     *)
-      step "Starting Stream Studio (close this window or press Ctrl+C to stop it)"
+      step "Starting GP Studio (close this window or press Ctrl+C to stop it)"
       rm -rf "$TMP"
       trap - EXIT
       exec "$LAUNCHER"

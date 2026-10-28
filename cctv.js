@@ -1,5 +1,5 @@
 /**
- * Stream Studio — live CCTV cameras
+ * GP Studio — live CCTV cameras
  *
  * Browsers cannot play RTSP, so while anyone watches a camera the server runs ONE ffmpeg that reads it
  * (RTSP, RTMP, HTTP MJPEG or HLS) and re-encodes it to Motion JPEG. Every frame goes to all viewers as a

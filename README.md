@@ -1,4 +1,4 @@
-# Stream Studio — Camera Live Screen
+# GP Studio — Camera Live Screen
 
 A 1920 × 1080 program output with admin-controlled split-screen overlays:
 the admin splits the screen, adds the **local camera live**, **USB capture cards**, **shared screens and
@@ -48,6 +48,7 @@ OBS as a **Browser Source** (1920 × 1080) to stream it.
 - **Layer order** — bring forward / send back within its screen, hide without removing, duplicate, remove, move to the other screen (*Move to main screen* / *Move to split screen*).
 - **Auto take** — every change goes to the program; turn it off to prepare changes and press **Take to program**.
 - **English / ខ្មែរ** — the switch in the admin's header shows the admin in Khmer; the browser remembers the choice. Layer and camera names stay as they were typed, and the program itself is never translated. The admin is written in English, and `public/admin/km.js` gives the Khmer for each English text (`{n}` stands for a number, `{name}` for a value): a text missing there shows in English.
+- **Home screen** — on a phone or tablet, *Add to Home Screen* (Safari, Chrome) puts the admin on the home screen with the GP logo. The browser tab shows the logo too.
 - Layout is saved to `data/layout.json` and restored on restart; uploads live in `uploads/`.
 
 ## Live CCTV
@@ -174,12 +175,17 @@ public/admin/             Admin layout editor
 public/admin/i18n.js      English / Khmer switch: translates the admin as it is shown
 public/admin/km.js        The Khmer for each English text of the admin
 public/output/            Program output page
+public/favicon.ico        Browser-tab icon
+public/apple-touch-icon.png  Home-screen icon on iPhone and iPad
+public/icons/             Home-screen icons on Android, the logo in the admin's header
+public/manifest.webmanifest  Name and icons of the admin on a home screen
 INSTALL.md                Step-by-step installation on another computer, webcam and CCTV set-up
 Install-Windows.bat       Windows installer (double-click); runs setup/install-windows.ps1
 Start-StreamStudio.bat    Windows launcher: starts the server, opens the admin
 Start-StreamStudio.command  macOS / Linux launcher
 setup/install.sh          macOS / Linux installer
 setup/stream-studio.ico   Icon of the shortcuts (.png for Linux)
+setup/brand/              The GP logo, a transparent PNG; after changing it, `node setup/brand/make-icons.js` makes every icon again (raise `?v=` on the pages' icon links)
 data/layout.json          Saved layout (created on first run)
 data/cctv.json            CCTV cameras with their URLs and passwords (created when the first camera is added)
 data/port.txt             Optional: the port, when it is not 3000

@@ -1,5 +1,5 @@
 /**
- * Stream Studio — server
+ * GP Studio — server
  *
  * - Serves the admin page (/admin) and the 1920x1080 program output page (/output)
  * - Keeps the split-screen layout in data/layout.json and broadcasts changes over Socket.IO
@@ -347,7 +347,7 @@ function openBrowser(url) {
   spawn(cmd, args, { stdio: 'ignore', detached: true, windowsHide: true }).on('error', () => {}).unref();
 }
 
-/** Is the server already on this port a Stream Studio? */
+/** Is the server already on this port a GP Studio? */
 async function isStreamStudio(base) {
   try {
     const res = await fetch(`${base}/api/layout`, { signal: AbortSignal.timeout(2000) });
@@ -368,22 +368,22 @@ server.on('error', async (err) => {
   }
   // started twice (desktop icon while it runs at login, say): show the running copy instead of failing
   if (await isStreamStudio(`${scheme}://localhost:${PORT}`)) {
-    console.log(`\n  Stream Studio is already running: ${adminUrl}\n`);
+    console.log(`\n  GP Studio is already running: ${adminUrl}\n`);
     if (process.env.OPEN_BROWSER) openBrowser(adminUrl);
     process.exit(0);
   }
-  console.error(`\n  Port ${PORT} is used by another program. Close that program, or give Stream Studio`);
+  console.error(`\n  Port ${PORT} is used by another program. Close that program, or give GP Studio`);
   console.error(`  another port: write a number such as 3001 into ${path.join(DATA_DIR, 'port.txt')}\n`);
   process.exit(1);
 });
 
 server.listen(PORT, () => {
   console.log('');
-  console.log('  Stream Studio is running');
+  console.log('  GP Studio is running');
   console.log(`  Admin  : ${adminUrl}`);
   console.log(`  Output : ${scheme}://localhost:${PORT}/output/   (press F for fullscreen)`);
   for (const ip of lanAddresses()) console.log(`  LAN    : ${scheme}://${ip}:${PORT}/`);
-  const bundled = cctv.ffmpegPath !== 'ffmpeg' && !process.env.FFMPEG_PATH ? ' (installed with Stream Studio)' : '';
+  const bundled = cctv.ffmpegPath !== 'ffmpeg' && !process.env.FFMPEG_PATH ? ' (installed with GP Studio)' : '';
   console.log(`  CCTV   : ${cctv.version ? `ffmpeg ${cctv.version.text}${bundled}` : 'ffmpeg not found — install it or set FFMPEG_PATH to play CCTV cameras'}`);
   if (scheme === 'http') {
     console.log('  Note   : browsers only allow camera access on localhost or HTTPS.');

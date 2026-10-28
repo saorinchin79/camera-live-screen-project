@@ -5,7 +5,7 @@
  */
 export default {
   // ---------- header ----------
-  'Layout Editor · Stream Studio': 'កែសម្រួលប្លង់ · Stream Studio',
+  'Layout Editor · GP Studio': 'កែសម្រួលប្លង់ · GP Studio',
   'Layout editor': 'កែសម្រួលប្លង់',
   'Layout': 'ប្លង់',
   'Open output ↗': 'បើកអេក្រង់ផ្សាយ ↗',

@@ -1,0 +1,14 @@
+{
+  "name": "GP Studio",
+  "short_name": "GP Studio",
+  "description": "Layout editor of the 1920 × 1080 program screen",
+  "start_url": "/admin/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#121417",
+  "theme_color": "#121417",
+  "icons": [
+    { "src": "/icons/tile-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/tile-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -62,6 +62,7 @@ h1, h2, h3 { margin: 0; }
 }
 
 .brand { display: flex; align-items: center; gap: 14px; }
+.brand-mark { display: block; width: 32px; height: 32px; flex: none; }
 .brand-name { font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
 .brand-sub { color: var(--muted); }
 
