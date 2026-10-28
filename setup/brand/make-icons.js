@@ -1,8 +1,9 @@
 /**
- * Makes GP Studio's icons from the logo, gp-logo.png in this folder: node setup/brand/make-icons.js
+ * Makes GP Studio's icons from the logo and the app icon in this folder: node setup/brand/make-icons.js
  *
- *   mark — the GP emblem on transparent: the favicon, the admin's header and the shortcut icons
- *   tile — the emblem on white, square and opaque (iOS turns transparency black): the home screen icons
+ *   mark — the GP emblem (gp-logo.png) on transparent: the favicon, the admin's header and the shortcut icons
+ *   tile — the emblem on white, square and opaque (iOS turns transparency black): the iPhone / iPad home screen
+ *   app  — app-icon.png as it is, rounded corners and shadow included: the app Chrome installs, Android's home screen
  *
  * The logo is the emblem on a transparent background, with any margin: the emblem is found by its visible pixels.
  * Needs ffmpeg: the copy npm installed (ffmpeg-static) or one on the PATH.
@@ -16,6 +17,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
 const LOGO = path.join(__dirname, 'gp-logo.png');
+const APP = path.join(__dirname, 'app-icon.png');
 let FFMPEG = 'ffmpeg';
 try {
   FFMPEG = require(path.join(ROOT, 'node_modules', 'ffmpeg-static')) || FFMPEG;
@@ -59,19 +61,30 @@ const crop = `crop=${emblem.w}:${emblem.h}:${emblem.x}:${emblem.y}`;
 const side = (share) => Math.round(Math.max(emblem.w, emblem.h) / share);
 
 /**
- * The emblem on transparent, the given size, with 2 % to spare on each side. It is scaled with premultiplied
- * alpha: scaling RGBA as it is would mix the transparent black around the emblem into its edges, a dark rim.
+ * Scales a picture with transparency to the given size with premultiplied alpha: scaling RGBA as it is would mix
+ * the transparent black around the artwork into its edges, a dark rim.
  */
+const scaleAlpha = (size) =>
+  `format=gbrap,premultiply=inplace=1,scale=${size}:${size}:flags=area,unpremultiply=inplace=1,format=rgba`;
+
+/** The emblem on transparent, the given size, with 2 % to spare on each side. */
 function mark(size, to) {
   const s = side(0.96);
   const file = to || path.join(tmp, `mark-${size}.png`);
   ffmpeg([
-    '-i', LOGO, '-vf',
-    `${crop},pad=${s}:${s}:(ow-iw)/2:(oh-ih)/2:color=black@0,format=gbrap,premultiply=inplace=1,` +
-      `scale=${size}:${size}:flags=area,unpremultiply=inplace=1,format=rgba`,
+    '-i', LOGO, '-vf', `${crop},pad=${s}:${s}:(ow-iw)/2:(oh-ih)/2:color=black@0,${scaleAlpha(size)}`,
     '-frames:v', '1', file,
   ]);
   return file;
+}
+
+/** The app icon as it is, the given size; a picture that is not square is centred on a transparent square. */
+function app(size, to) {
+  ffmpeg([
+    '-i', APP, '-vf', `pad='max(iw,ih)':'max(iw,ih)':(ow-iw)/2:(oh-ih)/2:color=black@0,${scaleAlpha(size)}`,
+    '-frames:v', '1', to,
+  ]);
+  return to;
 }
 
 /** The emblem on an opaque white square of the given size, 82 % of its width. */
@@ -109,8 +122,8 @@ const pub = (f) => path.join(ROOT, 'public', f);
 ico([16, 32, 48].map((s) => mark(s)), pub('favicon.ico'));
 mark(64, pub('icons/mark-64.png'));
 tile(180, pub('apple-touch-icon.png'));
-tile(192, pub('icons/tile-192.png'));
-tile(512, pub('icons/tile-512.png'));
+app(192, pub('icons/app-192.png'));
+app(512, pub('icons/app-512.png'));
 // the desktop shortcuts
 ico([16, 24, 32, 48, 64, 128, 256].map((s) => mark(s)), path.join(ROOT, 'setup', 'stream-studio.ico'));
 mark(256, path.join(ROOT, 'setup', 'stream-studio.png'));
