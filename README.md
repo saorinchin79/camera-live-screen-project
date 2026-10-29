@@ -44,7 +44,7 @@ OBS as a **Browser Source** (1920 × 1080) to stream it.
 - **Local camera live** — pick the camera device, resolution and mirroring; the stream goes to every output over WebRTC (optional microphone audio).
 - **USB devices** — HDMI capture cards, webcams and any other video device plugged into the admin's computer, several at once, each as its own overlay; pick the format (size and 30 / 60 fps). A device on the layout starts again by itself when the admin page opens or the device is plugged back in.
 - **Screen share** — share a whole screen, one window or a browser tab of the admin's computer (the browser asks which) at 15, 30 or 60 fps; any number of shares, each its own overlay. *Share again…* / *Change window…* in Properties.
-- **PNG / GIF** — in the **Custom** tab of Add source, for either screen: upload (transparency kept, GIFs animate) or reuse an uploaded file; drag and drop supported.
+- **PNG / GIF** — in the **Custom** tab of Add source, for either screen: upload (transparency kept, GIFs animate) or reuse an uploaded file; drag and drop supported. The bin next to an uploaded file deletes it, after asking; when it is on the layout, its windows go and a main screen that shows it goes back to the placeholder.
 - **Size & position** — drag the window in the preview, pull the handles to resize, type X / Y / Width / Height in output pixels, lock aspect ratio, quick sizes (1/4 … full width), 3 × 3 snap grid with a 48 px safe margin, arrow-key nudging.
 - **Appearance** — opacity, corner radius, fit, white border, mirror (camera, USB device).
 - **Layer order** — bring forward / send back within its screen, hide without removing, duplicate, remove, move to the other screen (*Move to main screen* / *Move to split screen*).
@@ -114,7 +114,7 @@ The output page works over plain HTTP; only the admin needs HTTPS when it is not
 | `PUT` | `/api/layout` | Replace the layout and push it to all outputs |
 | `POST` | `/api/upload` | Multipart upload, field `file` (PNG, GIF, JPG, WebP, MP4, WebM) → `{ url }` |
 | `GET` | `/api/uploads` | List uploaded files |
-| `DELETE` | `/api/uploads/:name` | Delete an uploaded file |
+| `DELETE` | `/api/uploads/:name` | Delete an uploaded file (the windows that show it are removed, a main screen that shows it goes back to the placeholder) |
 | `GET` | `/api/cctv` | CCTV cameras (passwords masked) with their live status |
 | `POST` | `/api/cctv` | Add a camera `{ name, url, fps }` (fps 5 / 10 / 15 / 25) |
 | `PUT` | `/api/cctv/:id` | Change a camera; a masked password in `url` keeps the stored one |

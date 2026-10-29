@@ -20,7 +20,7 @@ const express = require('express');
 const multer = require('multer');
 const { Server } = require('socket.io');
 
-const { DEFAULT_LAYOUT, sanitizeLayout, cctvIdOf, youtubeInfo, youtubeSrc } = require('./public/shared/layout');
+const { DEFAULT_LAYOUT, sanitizeLayout, withoutSource, cctvIdOf, youtubeInfo, youtubeSrc } = require('./public/shared/layout');
 const { createCctv } = require('./cctv');
 
 const ROOT = __dirname;
@@ -62,6 +62,15 @@ function saveLayout(layout) {
 }
 
 let layout = loadLayout();
+
+/** Nothing keeps showing a deleted file or camera: its windows go, a main screen showing it goes back to its placeholder. */
+function dropSource(shows) {
+  const next = withoutSource(layout, shows);
+  if (next === layout) return;
+  layout = next;
+  saveLayout(layout);
+  io.emit('layout', layout);
+}
 
 // ---------- uploads ----------
 
@@ -154,8 +163,10 @@ app.get('/api/uploads', (req, res) => {
 app.delete('/api/uploads/:name', (req, res) => {
   const name = path.basename(req.params.name);
   const file = path.join(UPLOAD_DIR, name);
-  if (!fs.existsSync(file)) return res.status(404).json({ error: 'Not found' });
+  // a file of the folder, as the list shows them: never a hidden file or the folder above
+  if (name.startsWith('.') || !fs.existsSync(file) || !fs.statSync(file).isFile()) return res.status(404).json({ error: 'Not found' });
   fs.unlinkSync(file);
+  dropSource((s) => s.src === `/uploads/${name}`);
   res.json({ ok: true });
 });
 
@@ -174,16 +185,7 @@ app.put('/api/cctv/:id', (req, res) => respond(res, () => cctv.save(req.params.i
 
 app.delete('/api/cctv/:id', (req, res) => {
   if (!cctv.remove(req.params.id)) return res.status(404).json({ error: 'Camera not found.' });
-  // nothing keeps showing a deleted camera: the main screen goes back to its placeholder, its windows go
-  const shows = (src) => cctvIdOf(src) === req.params.id;
-  const mainShows = layout.main.type === 'cctv' && shows(layout.main.src);
-  const layers = layout.layers.filter((l) => !(l.type === 'cctv' && shows(l.src)));
-  if (mainShows || layers.length !== layout.layers.length) {
-    const main = mainShows ? Object.assign({}, layout.main, { type: 'placeholder', src: '', label: 'Main Screen' }) : layout.main;
-    layout = sanitizeLayout(Object.assign({}, layout, { main, layers }));
-    saveLayout(layout);
-    io.emit('layout', layout);
-  }
+  dropSource((s) => s.type === 'cctv' && cctvIdOf(s.src) === req.params.id);
   res.json({ ok: true });
 });
 

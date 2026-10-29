@@ -365,6 +365,18 @@
     return sanitizeLayer(Object.assign({ id: uid(type), type }, props || {}), 0);
   }
 
+  /**
+   * The layout without a source that is gone (a deleted file or camera; `shows(main or layer)` says what showed it):
+   * its windows go, and a main screen that showed it goes back to its placeholder. The same layout when nothing did.
+   */
+  function withoutSource(layout, shows) {
+    const mainShows = shows(layout.main);
+    const layers = layout.layers.filter((l) => !shows(l));
+    if (!mainShows && layers.length === layout.layers.length) return layout;
+    const main = mainShows ? Object.assign({}, layout.main, { type: 'placeholder', src: '', label: 'Main Screen' }) : layout.main;
+    return sanitizeLayout(Object.assign({}, layout, { main, layers }));
+  }
+
   return {
     OUTPUT_W,
     OUTPUT_H,
@@ -406,5 +418,6 @@
     templateTarget,
     applyTemplate,
     newLayer,
+    withoutSource,
   };
 });

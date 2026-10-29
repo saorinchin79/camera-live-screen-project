@@ -477,6 +477,10 @@ select { appearance: auto; }
 .library img { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; background: #33415a; flex: none; }
 .library button { flex: 1; min-width: 0; text-align: left; height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; }
 .library button.active, .library button:hover { border-color: var(--accent); }
+/* the bin next to a file deletes it */
+.library .del-btn { flex: none; width: 44px; padding: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.library .del-btn:hover { border-color: var(--danger); color: var(--danger); }
+.library .del-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .grid-cctv { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 12px; }
 .cctv-help, .help { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }

@@ -296,6 +296,13 @@ export default {
   'Upload & add to layout': 'ផ្ទុកឡើង និងបន្ថែមទៅប្លង់',
   'GIF added — it animates on the program.': 'បានបន្ថែម GIF — វាមានចលនាលើការផ្សាយ។',
   'Image added to the layout.': 'បានបន្ថែមរូបភាពទៅប្លង់។',
+  'Delete this file': 'លុបឯកសារនេះ',
+  'Delete the file {file}': 'លុបឯកសារ {file}',
+  'Delete "{file}"? This cannot be undone.': 'លុប «{file}»? មិនអាចត្រឡប់វិញបានទេ។',
+  'Delete "{file}"? It is on the layout and goes from the program too. This cannot be undone.':
+    'លុប «{file}»? វានៅលើប្លង់ ហើយនឹងត្រូវដកចេញពីការផ្សាយដែរ។ មិនអាចត្រឡប់វិញបានទេ។',
+  '"{file}" deleted.': 'បានលុប «{file}»។',
+  'Could not delete the file.': 'មិនអាចលុបឯកសារបានទេ។',
 
   // ---------- layers the admin names ----------
   '{name} copy': '{name} ច្បាប់ចម្លង',

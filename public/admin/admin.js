@@ -1394,12 +1394,47 @@ async function loadLibrary() {
       b.dataset.url = f.url;
       b.textContent = f.name;
       b.addEventListener('click', () => setPendingImage({ url: f.url, name: f.name }));
-      li.append(img, b);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'del-btn';
+      del.title = 'Delete this file';
+      del.setAttribute('aria-label', `Delete the file ${f.name}`);
+      del.innerHTML = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4h4v2"></path><path d="M5.5 6l.8 10.1a1.5 1.5 0 0 0 1.5 1.4h4.4a1.5 1.5 0 0 0 1.5-1.4L14.5 6"></path><path d="M8.5 9.5v4.5M11.5 9.5v4.5"></path></svg>';
+      del.addEventListener('click', () => deleteUpload(f, del));
+      li.append(img, b, del);
       ul.appendChild(li);
     }
   } catch (_) {
     ul.innerHTML = '<li class="muted small">Could not load the library.</li>';
   }
+}
+
+/**
+ * Deletes an uploaded image, after asking. The server takes it off the program too: its windows go, and a main screen
+ * that showed it goes back to the placeholder; changes not yet on program lose it here.
+ */
+async function deleteUpload(f, btn) {
+  const used = state.layout.main.src === f.url || state.layout.layers.some((l) => l.src === f.url);
+  const question = used
+    ? 'Delete "{file}"? It is on the layout and goes from the program too. This cannot be undone.'
+    : 'Delete "{file}"? This cannot be undone.';
+  if (!confirm(t(question, { file: f.name }))) return;
+  const err = $('img-error');
+  err.classList.add('hidden');
+  btn.disabled = true;
+  const res = await fetch(`/api/uploads/${encodeURIComponent(f.name)}`, { method: 'DELETE' }).catch(() => null);
+  // already gone (another admin window deleted it) is deleted too
+  if (!res || (!res.ok && res.status !== 404)) {
+    btn.disabled = false;
+    err.textContent = 'Could not delete the file.';
+    err.classList.remove('hidden');
+    return;
+  }
+  if (state.pendingImage && state.pendingImage.url === f.url) setPendingImage(null);
+  const next = L.withoutSource(state.layout, (s) => s.src === f.url);
+  if (next !== state.layout) setLayout(next, { push: false });
+  await loadLibrary();
+  toast(`"${f.name}" deleted.`);
 }
 
 async function uploadFile(file) {
