@@ -3,7 +3,8 @@
 A 1920 × 1080 program output with admin-controlled split-screen overlays:
 the admin splits the screen, adds the **local camera live**, **USB capture cards**, **shared screens and
 windows**, **PNG** and **GIF** images on top of the main screen, and sets the size and position of every window.
-The main screen can show a **live CCTV camera**, and every source can be **cropped** (cut a toolbar off a video).
+The main screen can show a **live CCTV camera**, every source can be **cropped** (cut a toolbar off a video), and a
+video window can **lose its background colour** (a green screen, the plain colour behind a logo).
 Changes reach the output display instantly.
 
 ```
@@ -38,6 +39,7 @@ OBS as a **Browser Source** (1920 × 1080) to stream it.
 - **YouTube** — paste a YouTube video, live stream, Shorts or playlist link in **Custom → Video URL**. The server checks it first through YouTube's oEmbed: its title names the layer, and a video whose owner does not let other sites play it is refused before it goes on air. YouTube's own player then plays it on every output by itself, without controls, looping, muted unless *Mute video* is off. The outputs need internet. Browsers play sound only on a page someone has clicked: with *Mute video* off, the first click or key on the output page starts the sound, and OBS plays it straight away.
 - **Live CCTV** — RTSP (Hikvision, Dahua, Imou, NVRs…), RTMP, HTTP MJPEG or HLS cameras on the main screen or in split screen windows; test a camera before it goes on air, keep several cameras and switch between them. See [Live CCTV](#live-cctv).
 - **Crop** — cut a percentage off the top, bottom, left or right of any source (main screen or overlay) to remove a toolbar, a timestamp or black bars; the rest fills the window. Sliders in Properties, live in the preview.
+- **Remove background** — select a video window and tick *Remove the video’s background colour* in Properties: the plain colour behind a logo or a person (a green screen, a red or a black backdrop) turns see-through on the preview and on every output, and the window loses its white border. The colour is found from the video itself and shown next to its swatch; pick another there, and fine-tune *Strength* (how much around that colour goes), *Edge softness* and *Colour spill removal* (the colour's tint on the edges that stay). *Reset* finds the colour again. A colour is matched by its tint, so the darker and lighter parts of an unevenly lit green screen go together; black, white or grey by brightness. Works on uploaded video files (a browser may not read the pictures of a video from another site); each screen keys the video on its graphics card (WebGL).
 - **Split screen** — click **Split Screen** (or **Add source**) to add windows on top of the main screen; they show under the card as layers. Its **Custom** tab has the main screen's choices too (placeholder text, a video file, an image, a video URL or YouTube link, a live CCTV camera, a PNG/GIF), each as a window with its own size and position; a video or YouTube window has *Loop video* and *Mute video* in Properties. Presets for the split screen's camera: Picture-in-picture, Half split, 1/2 horizontal, 1/3 horizontal, Presenter corner, Camera full screen.
 - **Local camera live** — pick the camera device, resolution and mirroring; the stream goes to every output over WebRTC (optional microphone audio).
 - **USB devices** — HDMI capture cards, webcams and any other video device plugged into the admin's computer, several at once, each as its own overlay; pick the format (size and 30 / 60 fps). A device on the layout starts again by itself when the admin page opens or the device is plugged back in.
@@ -154,6 +156,9 @@ Socket.IO events: `hello {role}`, `layout`, `layout:set`, `camera:state`, `peers
 (a split-screen window on top; the default, also for layouts saved before groups existed). The main screen's layers
 always come first.
 `crop` is the percentage cut off each edge of the source (0–45 per edge) before it is fitted.
+A video window has `"key": { "on": true, "color": "#bc0000", "similarity": 40, "smoothness": 20, "spill": 50 }`:
+Remove background, the colour made see-through and the three sliders in % (`color` `""` = found from the video
+by the screen that shows it; the admin then keeps what it found).
 A CCTV main screen is `{ "type": "cctv", "src": "/api/cctv/<id>/stream.mjpg", "label": "<camera name>", … }`.
 A YouTube main screen is `{ "type": "youtube", "src": "https://www.youtube.com/watch?v=<id>", "label": "<video title>", … }`
 (`&list=` for a playlist, `&t=90s` to start later); a `video` main screen given a YouTube link becomes one.
@@ -170,6 +175,7 @@ server.js                 Express + Socket.IO server, uploads, WebRTC signaling 
 cctv.js                   Live CCTV: camera list, one ffmpeg per watched camera, MJPEG streams
 public/shared/layout.js   Layout model, templates, snapping, crop (shared by server and browser)
 public/shared/stage.js    Stage renderer (main screen + overlays, crop, drag/resize in the admin)
+public/shared/keyer.js    Remove background: draws a video without its backdrop colour (WebGL), finds that colour
 public/shared/stage.css   Stage styles
 public/admin/             Admin layout editor
 public/admin/i18n.js      English / Khmer switch: translates the admin as it is shown

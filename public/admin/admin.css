@@ -380,6 +380,13 @@ select { appearance: auto; }
 .text-btn:hover { background: var(--panel-2); }
 .text-btn:disabled { color: var(--muted); opacity: 0.5; cursor: default; background: transparent; }
 
+/* Remove background: the colour made see-through, as a swatch and its hex code */
+.color-row { display: flex; align-items: center; gap: 12px; color: var(--text); font-size: 13px; font-weight: 500; }
+.color-row input[type="color"] {
+  width: 64px; height: 44px; padding: 4px; flex: none;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--bg); cursor: pointer;
+}
+
 .cctv-status { display: flex; align-items: center; gap: 10px; min-height: 24px; font-size: 13px; }
 .cctv-dot { width: 10px; height: 10px; border-radius: 50%; background: #6b7580; flex: none; }
 .cctv-status.live .cctv-dot { background: #3ecf8e; }

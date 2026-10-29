@@ -5,12 +5,14 @@
  *   and the split screen's windows on top; a layer is the local camera, a USB device, a shared screen or window,
  *   or a PNG/GIF image. The Main Screen and Split Screen cards open Add source for their screen
  * - Crops any source (main screen or overlay) to cut toolbars and black bars off its edges
+ * - Removes the backdrop colour of a video window (Remove background): the stage keys it, the colour is found by itself
  * - Live preview with drag-to-move and resize handles (shared stage renderer)
  * - Sends the layout to every program output over Socket.IO ("Auto take" or "Take to program")
  * - Captures the local camera and USB devices (getUserMedia) and screen shares (getDisplayMedia), and streams
  *   each of them to the outputs over WebRTC: one connection per output and source
  */
 import { createStage } from '/shared/stage.js';
+import { canKey } from '/shared/keyer.js';
 import { t } from './i18n.js';
 
 const L = window.StreamLayout;
@@ -53,6 +55,11 @@ const stage = createStage($('preview'), {
   onChange: (layer, live) => updateLayer(layer.id, layer, { live, fromStage: true }),
   // the crop info shows the source size once the first frame is in
   onMediaSize: (id) => { if (id === state.selectedId) renderProps(); },
+  // Remove background found a video's backdrop colour: the layout keeps it, so every output removes the same one
+  onKeyColor: (id, color) => {
+    const layer = state.layout.layers.find((l) => l.id === id);
+    if (layer && layer.key.on && !layer.key.color) updateLayer(id, { key: Object.assign({}, layer.key, { color }) });
+  },
 });
 stage.root.classList.add('interactive');
 
@@ -329,6 +336,7 @@ function renderProps() {
     : layer.type === 'text' ? 'Text'
     : layer.src ? layer.src.split('/').pop() : 'No file — pick one from Add source';
   renderSourceSection(layer);
+  renderKeySection(layer);
 
   setIfIdle('f-x', layer.x);
   setIfIdle('f-y', layer.y);
@@ -423,6 +431,30 @@ function renderSourceSection(layer) {
   $('src-start').classList.toggle('hidden', elsewhere || (usb && !!src));
   $('src-stop').textContent = usb ? 'Stop device' : 'Stop sharing';
   $('src-stop').classList.toggle('hidden', !src);
+}
+
+/**
+ * Remove background, for a video window: on or off, the colour it removes and the keyer's sliders. Only a video
+ * file from this server can be keyed; a video link says so.
+ */
+function renderKeySection(layer) {
+  const video = layer.type === 'video';
+  $('sec-key').classList.toggle('hidden', !video);
+  if (!video) return;
+  const k = layer.key;
+  const file = canKey(layer.src);
+  const on = k.on && file;
+  $('key-on').checked = on;
+  $('key-on').disabled = !file;
+  $('key-note').classList.toggle('hidden', file);
+  $('key-controls').classList.toggle('hidden', !on);
+  $('key-reset').disabled = !on;
+  if (k.color) $('key-color').value = k.color;
+  $('key-color-val').textContent = k.color || 'Finding the colour…';
+  for (const name of L.KEY_SLIDERS) {
+    $(`key-${name}`).value = k[name];
+    $(`key-${name}-val`).textContent = `${k[name]} %`;
+  }
 }
 
 function renderMainProps() {
@@ -603,6 +635,31 @@ for (const edge of L.CROP_EDGES) {
   input.addEventListener('change', () => apply(false));
 }
 $('crop-reset').addEventListener('click', () => setCrop(L.sanitizeCrop(), false));
+
+// remove background: the selected video window's key; the preview follows the colour and the sliders
+function setKey(patch, live) {
+  const layer = selectedLayer();
+  if (!layer || layer.type !== 'video') return;
+  updateLayer(layer.id, { key: L.sanitizeKey(Object.assign({}, layer.key, patch)) }, { live });
+  if (live) stage.render(state.layout, state.selectedId);
+}
+$('key-on').addEventListener('change', (e) => {
+  const layer = selectedLayer();
+  if (!layer || layer.type !== 'video') return;
+  const patch = { key: L.sanitizeKey(Object.assign({}, layer.key, { on: e.target.checked })) };
+  // a see-through video floats on the program like a PNG: no white frame around it
+  if (e.target.checked) patch.border = false;
+  updateLayer(layer.id, patch);
+});
+$('key-color').addEventListener('input', (e) => setKey({ color: e.target.value }, true));
+$('key-color').addEventListener('change', (e) => setKey({ color: e.target.value }, false));
+for (const name of L.KEY_SLIDERS) {
+  const input = $(`key-${name}`);
+  input.addEventListener('input', () => setKey({ [name]: Number(input.value) }, true));
+  input.addEventListener('change', () => setKey({ [name]: Number(input.value) }, false));
+}
+// the backdrop colour found again, and the sliders as they started
+$('key-reset').addEventListener('click', () => setKey(Object.assign({}, L.KEY_DEFAULTS, { on: true }), false));
 
 $('btn-up').addEventListener('click', () => { const l = selectedLayer(); if (l) moveLayer(l.id, +1); });
 $('btn-down').addEventListener('click', () => { const l = selectedLayer(); if (l) moveLayer(l.id, -1); });

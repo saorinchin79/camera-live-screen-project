@@ -8,6 +8,7 @@
  *            group "main" layers are part of the main screen (a shared browser tab filling the program, say),
  *            group "split" layers are the split-screen windows above it. The main screen's come first in the list.
  * Every source can be cropped: `crop` cuts a percentage off each edge before the rest is fitted.
+ * A video window can lose its backdrop colour: `key` makes it see-through (keyer.js draws it).
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -39,6 +40,11 @@
   /** Crop: percent cut off each edge of the source; 45 % per edge keeps at least 10 % of it. */
   const CROP_EDGES = ['top', 'right', 'bottom', 'left'];
   const MAX_CROP = 45;
+
+  /** Remove background: the colour made see-through ('' = not found yet) and the keyer's sliders, in %. */
+  const KEY_DEFAULTS = { on: false, color: '', similarity: 40, smoothness: 20, spill: 50 };
+  const KEY_SLIDERS = ['similarity', 'smoothness', 'spill'];
+  const HEX_COLOR = /^#[0-9a-f]{6}$/;
 
   /** A live CCTV camera is played from this server; the camera URL (and password) stays there. */
   const CCTV_SRC = /^\/api\/cctv\/([a-z0-9-]{1,40})\/stream\.mjpg$/;
@@ -199,6 +205,14 @@
     return !!crop && CROP_EDGES.some((edge) => crop[edge] > 0);
   }
 
+  function sanitizeKey(raw) {
+    const k = raw && typeof raw === 'object' ? raw : {};
+    const color = String(k.color || '').toLowerCase();
+    const key = { on: !!k.on, color: HEX_COLOR.test(color) ? color : '' };
+    for (const name of KEY_SLIDERS) key[name] = clamp(Math.round(num(k[name], KEY_DEFAULTS[name])), 0, 100);
+    return key;
+  }
+
   /** The USB device an overlay shows (the browser's device id and name) and the format to capture it in; 0 = any. */
   function sanitizeDevice(raw) {
     const d = raw && typeof raw === 'object' ? raw : {};
@@ -248,6 +262,7 @@
     if (type === 'usb' || type === 'screen') layer.source = SOURCE_ID.test(l.source) ? l.source : uid(type);
     if (type === 'usb') layer.device = sanitizeDevice(l.device);
     if (type === 'video' || type === 'youtube') Object.assign(layer, { loop: l.loop !== false, muted: l.muted !== false });
+    if (type === 'video') layer.key = sanitizeKey(l.key);
     return layer;
   }
 
@@ -362,6 +377,8 @@
     MAIN_ID,
     CROP_EDGES,
     MAX_CROP,
+    KEY_DEFAULTS,
+    KEY_SLIDERS,
     DEFAULT_LAYOUT,
     TEMPLATES,
     ANCHORS,
@@ -377,6 +394,7 @@
     youtubeEmbedUrl,
     sanitizeCrop,
     hasCrop,
+    sanitizeKey,
     sanitizeDevice,
     sanitizeLayer,
     sanitizeLayout,

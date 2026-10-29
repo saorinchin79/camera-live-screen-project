@@ -150,6 +150,20 @@
           </div>
         </section>
 
+        <!-- video window: its backdrop colour made see-through (shared/keyer.js) -->
+        <section id="sec-key" class="hidden">
+          <div class="section-head"><h3>Remove background</h3><button id="key-reset" class="text-btn" type="button">Reset</button></div>
+          <label class="check"><input id="key-on" type="checkbox">Remove the video’s background colour</label>
+          <span class="muted small">Makes the plain colour behind a logo or a person see-through, such as a green screen. The colour is found by itself.</span>
+          <p id="key-note" class="muted small hidden">Only an uploaded video file can lose its background.</p>
+          <div id="key-controls" class="stack">
+            <label>Colour removed<span class="color-row"><input id="key-color" type="color" value="#00b140"><span id="key-color-val" class="mono"></span></span></label>
+            <label class="range-label"><span class="between"><span>Strength</span><span id="key-similarity-val" class="mono">40 %</span></span><input id="key-similarity" type="range" min="0" max="100" step="1"></label>
+            <label class="range-label"><span class="between"><span>Edge softness</span><span id="key-smoothness-val" class="mono">20 %</span></span><input id="key-smoothness" type="range" min="0" max="100" step="1"></label>
+            <label class="range-label"><span class="between"><span>Colour spill removal</span><span id="key-spill-val" class="mono">50 %</span></span><input id="key-spill" type="range" min="0" max="100" step="1"></label>
+          </div>
+        </section>
+
         <section>
           <div class="section-head"><h3>Position &amp; size</h3><span class="muted mono small">output px</span></div>
           <div class="grid-2">

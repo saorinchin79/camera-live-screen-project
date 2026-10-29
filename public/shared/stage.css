@@ -35,7 +35,8 @@
 
 .media-frame > video,
 .media-frame > img,
-.media-frame > iframe {
+.media-frame > iframe,
+.media-frame > canvas {
   position: absolute;
   left: 0;
   top: 0;
@@ -209,6 +210,21 @@
 .layer-cctv .layer-box,
 .layer-cctv .layer-placeholder {
   background: #000;
+}
+
+/* Remove background: the keyer's canvas shows the video without its backdrop colour, and the window is see-through
+   like a PNG's (the video still plays, hidden, for the keyer) */
+.layer.keyed .media-frame > video {
+  visibility: hidden;
+}
+
+.layer.keyed .layer-box {
+  background: transparent;
+  box-shadow: none;
+}
+
+.layer.keyed .layer-box.bordered {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
 }
 
 /* a text window: its name, centred on one line (stage.js sizes it to the window) */

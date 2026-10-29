@@ -3,7 +3,7 @@
  * Used by the admin preview (interactive: drag to move, handles to resize) and by the program output.
  *
  * Usage:
- *   const stage = createStage(container, { interactive: true, onSelect, onChange, lockAspect: () => true, onMediaSize });
+ *   const stage = createStage(container, { interactive: true, onSelect, onChange, lockAspect: () => true, onMediaSize, onKeyColor });
  *   stage.render(layout, selectedId);
  *   stage.setScale(0.6);
  *   stage.setCameraStream(mediaStream);
@@ -11,7 +11,11 @@
  *   stage.setLiveSources(sources);  // the server's "sources" events: what the admin publishes
  *   stage.setCctvStatus(status);   // the server's "cctv:status" events
  *   stage.startSound();   // after the first click or key on the page: videos and YouTube players with sound can start
+ * A video window with Remove background on (layer.key) is drawn by a keyer; onKeyColor(id, color) reports the
+ * backdrop colour it found when the layout had none.
  */
+import { createKeyer, canKey } from './keyer.js';
+
 const L = window.StreamLayout;
 
 const HANDLE_DIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -21,7 +25,7 @@ const LABEL_ATTRS = { VIDEO: 'aria-label', IFRAME: 'title' };
 
 export function createStage(container, options = {}) {
   const opts = Object.assign(
-    { interactive: false, onSelect: () => {}, onChange: () => {}, lockAspect: () => false, onMediaSize: () => {} },
+    { interactive: false, onSelect: () => {}, onChange: () => {}, lockAspect: () => false, onMediaSize: () => {}, onKeyColor: () => {} },
     options
   );
 
@@ -313,6 +317,7 @@ export function createStage(container, options = {}) {
   function unmountMedia(view) {
     if (!view) return;
     clearInterval(view.timer);
+    if (view.keyer) view.keyer.destroy();
     const m = view.media;
     if (m.tagName === 'IMG' || m.tagName === 'IFRAME') {
       m.removeAttribute('src'); // also ends an MJPEG stream's connection; a YouTube player goes with its element
@@ -332,12 +337,12 @@ export function createStage(container, options = {}) {
    */
   function fitMedia(view, boxW, boxH, fit, crop) {
     if (boxW) Object.assign(view, { boxW, boxH, fit, crop });
-    const { media, frame } = view;
+    const { frame } = view;
     const c = view.crop || L.sanitizeCrop();
     if (!view.w || !view.h) {
       // size not known yet: plain object-fit, and a cropped source stays hidden until it can be cropped
       Object.assign(frame.style, { left: '0', top: '0', width: '100%', height: '100%', visibility: L.hasCrop(c) ? 'hidden' : '' });
-      Object.assign(media.style, { left: '0', top: '0', width: '100%', height: '100%', objectFit: view.fit });
+      placeMedia(view, { left: '0', top: '0', width: '100%', height: '100%', objectFit: view.fit });
       return;
     }
     const keepW = 1 - (c.left + c.right) / 100; // share of the source that stays visible
@@ -354,13 +359,19 @@ export function createStage(container, options = {}) {
       else fh = boxAspect / cropAspect;
     }
     Object.assign(frame.style, { left: pct((1 - fw) / 2), top: pct((1 - fh) / 2), width: pct(fw), height: pct(fh), visibility: '' });
-    Object.assign(media.style, {
+    placeMedia(view, {
       left: pct(-c.left / 100 / keepW),
       top: pct(-c.top / 100 / keepH),
       width: pct(1 / keepW),
       height: pct(1 / keepH),
       objectFit: 'fill',
     });
+  }
+
+  /** Where the media sits in its crop frame; a keyed video's canvas, shown instead of the video, sits there too. */
+  function placeMedia(view, style) {
+    Object.assign(view.media.style, style);
+    if (view.keyer) Object.assign(view.keyer.canvas.style, style);
   }
 
   // ---------- overlays ----------
@@ -473,6 +484,7 @@ export function createStage(container, options = {}) {
     else if (layer.type === 'youtube') attachYoutube(entry);
     else if (layer.type === 'text') attachText(entry, layer);
     else attachFile(entry);
+    if (layer.type === 'video') keyVideo(entry);
     if (entry.view) fitMedia(entry.view, layer.w, layer.h, layer.fit, layer.crop);
   }
 
@@ -521,6 +533,28 @@ export function createStage(container, options = {}) {
     // a CCTV window waits for its first frame
     el.classList.toggle('no-media', !layer.src || (layer.type === 'cctv' && !entry.view.w));
     if (layer.type === 'cctv') noteCctv(entry);
+  }
+
+  /**
+   * Remove background on a video window: a keyer draws the video without its backdrop colour in the video's place,
+   * and the video itself is hidden. Only a video from this server can be keyed; in a browser without WebGL
+   * (keyer null) the video plays as it is.
+   */
+  function keyVideo(entry) {
+    const { layer, view, media } = entry;
+    const on = layer.key.on && !!layer.src && canKey(layer.src);
+    if (on && view.keyer === undefined) {
+      view.keyer = createKeyer(media, { onColor: (color) => opts.onKeyColor(layer.id, color) });
+      if (view.keyer) view.frame.appendChild(view.keyer.canvas);
+    } else if (!on && view.keyer) {
+      view.keyer.destroy();
+      view.keyer = undefined;
+    }
+    if (on && view.keyer) {
+      view.keyer.canvas.style.transform = media.style.transform;
+      view.keyer.set(layer.key);
+    }
+    entry.el.classList.toggle('keyed', !!(on && view.keyer));
   }
 
   /** YouTube's player for a window: started again only when the video, its loop or its sound change. */
